@@ -10,7 +10,10 @@ from parsl.dataflow.dflow import DataFlowKernelLoader
 import os
 import time
 import datetime
-import pwd
+import hashlib
+import datetime
+import json
+import time
 
 from uuid import uuid4
 
@@ -37,10 +40,14 @@ class Sandbox(object):
          self._project_name = value
 
     def generateUniqueLabel(self, label):
-        return uuid4().hex+label
+        t = time.time()
+        uid =  datetime.datetime.utcfromtimestamp(t).strftime('%Y%m%dZ%H%M%S') + "_" + label + "_" +hashlib.md5(str(t).encode('utf-8')).hexdigest()
+        return uid
 
     def createWorkingDirectory(self, label):
         self.working_directory = self.generateUniqueLabel(label)
+        if self.project_name == "":
+            self.project_name = self.generateUniqueLabel(self.project_name)
         wd = self._project_name+"/"+ self.working_directory
         os.makedirs(wd)
     
