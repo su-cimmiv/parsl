@@ -80,6 +80,10 @@ class AppFuture(Future):
     @property
     def tid(self):
         return self.task_def['id']
+    
+    @property
+    def workflow_schema(self):
+        return self.result()['workflow_schema']
 
     def cancel(self):
         raise NotImplementedError("Cancel not implemented")
