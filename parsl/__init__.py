@@ -33,6 +33,11 @@ from parsl.data_provider.files import File
 
 from parsl.dataflow.dflow import DataFlowKernel, DataFlowKernelLoader
 
+##########################################################
+from parsl.dataflow.wflow import Workflow, WorkflowLoader#
+##########################################################
+
+
 __author__ = 'The Parsl Team'
 __version__ = VERSION
 
@@ -71,6 +76,14 @@ load = DataFlowKernelLoader.load
 dfk = DataFlowKernelLoader.dfk
 wait_for_current_tasks = DataFlowKernelLoader.wait_for_current_tasks
 
+
+workflow_clear = WorkflowLoader.clear                                    
+workflow_load = WorkflowLoader.load                                      
+workflowk = WorkflowLoader.dfk                                           
+workflow_wait_for_current_tasks = WorkflowLoader.wait_for_current_tasks
+workflow_get_scratch_dir_base = WorkflowLoader.scratch_dir_base       
+workflow_name = WorkflowLoader.workflow_name
+workflow_name_setter =  WorkflowLoader.workflow_name_setter
 
 class NullHandler(logging.Handler):
     """Setup default logging to /dev/null since this is library."""
