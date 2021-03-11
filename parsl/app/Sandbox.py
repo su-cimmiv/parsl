@@ -2,10 +2,12 @@ from functools import update_wrapper
 from functools import partial
 from inspect import signature, Parameter
 
+import parsl
+
 from parsl.app.bash import BashApp
 from parsl.app.errors import wrap_error
 from parsl.data_provider.files import File
-from parsl.dataflow.dflow import DataFlowKernelLoader
+from parsl.dataflow.wflow import WorkflowLoader
 
 import os
 import time
@@ -22,7 +24,7 @@ class Sandbox(object):
 
     def __init__(self, project_name):
         self._working_directory = None
-        self._project_name = project_name
+        #self._project_name = project_name
 
   
     @property
@@ -31,13 +33,7 @@ class Sandbox(object):
     @working_directory.setter
     def working_directory(self,value):
         self._working_directory = value
-
-    @property
-    def project_name(self):
-        return self._project_name
-    @project_name.setter
-    def project_name(self, value):
-         self._project_name = value
+        
 
     def generateUniqueLabel(self, label):
         t = time.time()
@@ -46,24 +42,15 @@ class Sandbox(object):
 
     def createWorkingDirectory(self, label):
         self.working_directory = self.generateUniqueLabel(label)
-        if self.project_name == "":
-            self.project_name = self.generateUniqueLabel(self.project_name)
-        wd = self._project_name+"/"+ self.working_directory
+        wd = self.working_directory if parsl.workflow_name() == "" else parsl.workflow_name() +"/"+self.working_directory
         os.makedirs(wd)
     
-    def workflowSchemaResolver(self,inputs=[]):
-        for i in range(len(inputs)):
-            if isinstance(inputs[i],File):
-                inputs[i].filepath = inputs[i].filepath.replace("workflow://","")
-            else:
-                inputs[i] = inputs[i].replace("workflow://","")
-        return inputs
-    
     def pre_run(self, executable, inputs = [], removedir=False):
-        #go in the workflowName Folder
-        command = "cd ../ \n"
+        command=""
+        #go in the project folder
+        command = "" if parsl.workflow_name() == "" else "cd "+parsl.workflow_name()+" \n\n"
         #for each input file resolve workflow:// schema
-        inFile = self.workflowSchemaResolver(inputs)
+        inFile = inputs
         #copy files to current directory
         for i in range(len(inFile)):
             if isinstance(inFile[i],File):
@@ -72,10 +59,8 @@ class Sandbox(object):
                 command+="cp --parents "+inFile[i]+" "+self.working_directory+"/ \n"
         #go into the working dir of the app
         command+='cd '+self.working_directory+"\n"
-        #resolve the workflow schema in the command
-        _executable = executable.replace("workflow://","")
-        command+=_executable+"\n\n"
-        #after running, delete imported folders if the flag is set to True ( dafault is set to False )
+        command+=executable
+        
         dirname = None
         path = None
         if removedir == True:
@@ -134,15 +119,12 @@ def sandbox_executor(func, *args, **kwargs):
 
     executable = None
     
-    #the workflow name
-    project = kwargs.get('project',"")
-	#set the project name
-    sandbox.project_name = project
     #create a working dir with the sandbox
     sandbox.createWorkingDirectory(func_name)
-    wdPath = sandbox.project_name+"/"+sandbox.working_directory
+    #app name retuned 
+    app_name = kwargs.get("workflow_app_name","")
     # workflow schema as workflow:///funcNameUUID
-    workflow_schema = "workflow://"+sandbox.working_directory
+    workflow_schema = "workflow://"+app_name
     
     # Try to run the func to compose the commandline
     try:
@@ -165,7 +147,6 @@ def sandbox_executor(func, *args, **kwargs):
     if 'inputs' in kwargs and kwargs.get('inputs',[]) is not None:
         #update the kwargs for the app
         inputs = kwargs.get("inputs",[])
-        kwargs.update(inputs=inputs)
         executable = sandbox.pre_run(executable,inputs)
 
     # Updating stdout, stderr if values passed at call time.
@@ -198,14 +179,13 @@ def sandbox_executor(func, *args, **kwargs):
         cwd = os.getcwd() #current working dir
         logger.debug("workflow://schema: %s", workflow_schema)
         
-
-        #Pass to Popen even the working direcotory created with the sandbox
-        proc = subprocess.Popen(executable, cwd = wdPath,stdout=std_out, stderr=std_err, shell=True, executable='/bin/bash')
+        proc = subprocess.Popen(executable,stdout=std_out, stderr=std_err, shell=True, executable='/bin/bash')
         proc.wait(timeout=timeout)
 
         return_value = {
         'workflow_schema': workflow_schema,
         'return_code' : proc.returncode,
+        'working_directory':sandbox.working_directory,
         }
 
         if cwd is not None:
@@ -258,3 +238,23 @@ class SandboxApp(BashApp):
         remote_fn = partial(update_wrapper(sandbox_executor, self.func), self.func)
         remote_fn.__name__ = self.func.__name__
         self.wrapped_remote_function = wrap_error(remote_fn)
+ 
+       def __call__(self, *args, **kwargs):
+        
+        invocation_kwargs = {}
+        invocation_kwargs.update(self.kwargs)
+        invocation_kwargs.update(kwargs)
+
+        if self.data_flow_kernel is None:
+            dfk = WorkflowLoader.dfk()
+        else:
+            dfk = self.data_flow_kernel
+
+        app_fut = dfk.submit(self.wrapped_remote_function,
+                             app_args=args,
+                             executors=self.executors,
+                             cache=self.cache,
+                             ignore_for_cache=self.ignore_for_cache,
+                             app_kwargs=invocation_kwargs)
+
+        return app_fut
