@@ -388,10 +388,10 @@ class Workflow(DataFlowKernel):
 
 
     def find_task_working_directory(self, app_name):
-        ''''Find the working directory of the task the current task depends on
+        """Find the working directory of the task the current task depends on
         We know that to the sandbox_app are passed strings containing workflow:// schema
         Assuming that a workflow_app_name is associated  to the sandbox_app when
-        the method submit is invoked, we can find working_directory by studying the task dict''''
+        the method submit is invoked, we can find working_directory by studying the task dict"""
         
         working_directory = ""  
         #For each key-value pair in tasks                    
@@ -506,7 +506,6 @@ class Workflow(DataFlowKernel):
             d = None
             for key, value in self.tasks.items():                            
                 if value['working_directory'] == wd:
-                    print(value['app_fu'])
                     d = value['app_fu']
                     break
             return d
