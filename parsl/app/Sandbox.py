@@ -35,10 +35,12 @@ class Sandbox(object):
         self._working_directory = value
         
 
-    def generateUniqueLabel(self, label):
-        t = time.time()
-        uid =  datetime.datetime.utcfromtimestamp(t).strftime('%Y%m%dZ%H%M%S') + "_" + label + "_" +hashlib.md5(str(t).encode('utf-8')).hexdigest()
-        return uid
+    def generateUniqueLabel(self, label): 
+        """
+        Generates a unique name for the scratch directory 
+        """
+        millis = int(round(time.time() * 1000))
+        return str(millis) + "-" + label
 
     def createWorkingDirectory(self, label):
         self.working_directory = self.generateUniqueLabel(label)
