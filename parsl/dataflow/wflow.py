@@ -570,11 +570,12 @@ class Workflow(DataFlowKernel):
         resource_specification = app_kwargs.get('parsl_resource_specification', {})
 
         workflow_app_name = ""
+
         if "workflow_app_name" in app_kwargs:
             workflow_app_name = app_kwargs.get("workflow_app_name","")
         if workflow_app_name == "":
-            workflow_app_name = func.__name__ + "-"+str(task_id)
-
+            workflow_app_name = func.__name__[0] + "-"+str(task_id)
+            
         task_def = {'depends': None,
                     'executor': executor,
                     'func_name': func.__name__,
@@ -607,6 +608,9 @@ class Workflow(DataFlowKernel):
         app_args, app_kwargs, func = self._add_input_deps(executor, app_args, app_kwargs, func)
 
         func = self._add_output_deps(executor, app_args, app_kwargs, app_fu, func)
+
+        #update the kwarg workflow_app_name
+        app_kwargs['workflow_app_name']=workflow_app_name
 
         task_def.update({
                     'args': app_args,
