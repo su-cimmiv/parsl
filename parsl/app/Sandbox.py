@@ -186,6 +186,7 @@ def sandbox_executor(func, *args, **kwargs):
         'workflow_schema': workflow_schema,
         'return_code' : proc.returncode,
         'working_directory':sandbox.working_directory,
+        'workflow_app_name':app_name
         }
 
         if cwd is not None:
