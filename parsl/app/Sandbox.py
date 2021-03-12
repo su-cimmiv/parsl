@@ -49,38 +49,35 @@ class Sandbox(object):
     
     def pre_run(self, executable, inputs = [], removedir=False):
         command=""
-        #go in the project folder
-        command = "" if parsl.workflow_name() == "" else "cd "+parsl.workflow_name()+" \n\n"
-        #for each input file resolve workflow:// schema
-        inFile = inputs
-        #copy files to current directory
-        for i in range(len(inFile)):
-            if isinstance(inFile[i],File):
-                command+="cp --parents "+inFile[i].filepath+" "+self.working_directory+"/ \n"
-            else:
-                command+="cp --parents "+inFile[i]+" "+self.working_directory+"/ \n"
-        #go into the working dir of the app
-        command+='cd '+self.working_directory+"\n"
-        command+=executable
-        
-        dirname = None
-        path = None
-        if removedir == True:
-            for i in range(len(inFile)):
-                if isinstance(inFile[i],File):
-                    path = inFile[i].filepath
-                else:
-                    path = inFile[i]
-                command+="rm -r "+dirname[0]+"/ \n"
+        if inputs == None :
+            command+='cd '+self.working_directory+"\n"
+            command+=executable+"\n"
         else:
+            #go in the project folder
+            command = "" if parsl.workflow_name() == "" else "cd "+parsl.workflow_name()+" \n\n"
+            #for each input file resolve workflow:// schema
+            inFile = inputs
+            #copy files to current directory
             for i in range(len(inFile)):
-                if isinstance(inFile[i],File):
-                    path = inFile[i].filepath
-                else:
+                command+="cp --parents "+inFile[i]+" "+self.working_directory+"/ \n"
+            #go into the working dir of the app
+            command+='cd '+self.working_directory+"\n"
+            command+=executable+"\n"
+            
+            dirname = None
+            path = None
+            if removedir == True:
+                for i in range(len(inFile)):
+                    if isinstance(inFile[i],File):
+                        path = inFile[i].filepath
+                    else:
+                        path = inFile[i]
+                    command+="rm -r "+dirname[0]+"/ \n"
+            else:
+                for i in range(len(inFile)):
                     path = inFile[i]
-                dirname = path.split("/")
-                command+="\nmv "+dirname[0]+"/ "+dirname[0]+"_old/ \n"
-        
+                    dirname = path.split("/")
+                    command+="\nmv "+dirname[0]+"/ "+dirname[0]+"_old/ \n"
         return command
 
 
@@ -150,6 +147,9 @@ def sandbox_executor(func, *args, **kwargs):
         #update the kwargs for the app
         inputs = kwargs.get("inputs",[])
         executable = sandbox.pre_run(executable,inputs)
+    else:
+        #if no inputs field is in the kwargs, execute the command in the working directory of the app
+        executable = sandbox.pre_run(executable,None)
 
     # Updating stdout, stderr if values passed at call time.
 
