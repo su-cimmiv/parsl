@@ -158,7 +158,6 @@ def sandbox_executor(func, *args, **kwargs):
     sandbox.createWorkingDirectory(func_name)
     #app name retuned 
     app_name = kwargs.get("workflow_app_name","")
-    print(app_name)
     # workflow schema as workflow:///funcNameUUID
     workflow_schema = "workflow://"+parsl.dfk().workflow_name+"/"+app_name
     
