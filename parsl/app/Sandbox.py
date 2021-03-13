@@ -7,7 +7,7 @@ import parsl
 from parsl.app.bash import BashApp
 from parsl.app.errors import wrap_error
 from parsl.data_provider.files import File
-from parsl.dataflow.wflow import WorkflowLoader
+from parsl.dataflow.dflow import DataFlowKernelLoader
 
 import os
 import time
@@ -44,7 +44,7 @@ class Sandbox(object):
 
     def createWorkingDirectory(self, label):
         self.working_directory = self.generateUniqueLabel(label)
-        wd = self.working_directory if parsl.workflow_name() == "" else parsl.workflow_name() +"/"+self.working_directory
+        wd = parsl.dfk().workflow_name +"/"+self.working_directory
         os.makedirs(wd)
 
     def no_copy(self):
@@ -62,7 +62,7 @@ class Sandbox(object):
             command+=executable+"\n"
         else:
             #go in the project folder
-            command = "" if parsl.workflow_name() == "" else "cd "+parsl.workflow_name()+" \n\n"
+            command+="cd "+parsl.dfk().workflow_name+" \n\n"
             #for each input file resolve workflow:// schema
             inFile = inputs
             #copy files to current directory
@@ -131,7 +131,7 @@ def sandbox_executor(func, *args, **kwargs):
     #app name retuned 
     app_name = kwargs.get("workflow_app_name","")
     # workflow schema as workflow:///funcNameUUID
-    workflow_schema = "workflow://"+app_name
+    workflow_schema = "workflow://"+parsl.dfk().workflow_name+"/"+app_name
     
     # Try to run the func to compose the commandline
     try:
