@@ -610,7 +610,7 @@ class DataFlowKernel(object):
                 working_directory = value['app_fu'].result()['working_directory']
                 self.tasks[key]['workflow_app_working_directory'] = working_directory
                 break
-        print("working directory : ", working_directory)
+        
         return working_directory
 
 
@@ -642,7 +642,7 @@ class DataFlowKernel(object):
             working_directory = self._get_scratch_directory_app(app_name)
             inFile = inFile.replace(app_name,working_directory) #replace workflow_app_name with the wd path
             inputs[i] = inFile
-            print("In wflow.py app_name = ",app_name,"\n")
+            
         return kwargs,func
 
 
@@ -904,6 +904,7 @@ class DataFlowKernel(object):
                 workflow_app_name = app_kwargs.get('workflow_app_name',"")
             if workflow_app_name == "":
                 workflow_app_name = func.__name__+'-'+str(task_id)
+            print("workflow_app_name = ",workflow_app_name)
             
             task_def.update({
                 'workflow_app_name':workflow_app_name,
@@ -914,8 +915,10 @@ class DataFlowKernel(object):
         # Transform remote input files to data futures
         if func.__doc__ == "sandbox_app":
             #app_args, app_kwargs, func = self._add_input_deps(executor, app_args, app_kwargs, func)
-            print("e' una sandbox")
+            
             app_kwargs, func = self._add_input_deps_sandbox_app(executor,app_kwargs,func)
+            #update app_kwargs
+            app_kwargs['workflow_app_name'] = workflow_app_name
 
         else:
             app_args, app_kwargs, func = self._add_input_deps(executor, app_args, app_kwargs, func)
