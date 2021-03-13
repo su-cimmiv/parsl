@@ -46,11 +46,19 @@ class Sandbox(object):
         self.working_directory = self.generateUniqueLabel(label)
         wd = self.working_directory if parsl.workflow_name() == "" else parsl.workflow_name() +"/"+self.working_directory
         os.makedirs(wd)
+
+    def no_copy(self):
+         """ 
+         If the command does not require files, just move to the task works directory
+         
+         """
+         return "cd "+self.working_directory+" \n"
     
     def pre_run(self, executable, inputs = [], removedir=False):
         command=""
-        if inputs == None :
-            command+='cd '+self.working_directory+"\n"
+        if inputs is None :
+            
+            command+=self.no_copy()
             command+=executable+"\n"
         else:
             #go in the project folder
@@ -224,6 +232,7 @@ class SandboxApp(BashApp):
         super().__init__(func, data_flow_kernel=data_flow_kernel, executors=executors, cache=cache, ignore_for_cache=ignore_for_cache)
         self.kwargs = {}
 
+        
 
         # We duplicate the extraction of parameter defaults
         # to self.kwargs to ensure availability at point of
@@ -240,24 +249,8 @@ class SandboxApp(BashApp):
         # doesn't support
         remote_fn = partial(update_wrapper(sandbox_executor, self.func), self.func)
         remote_fn.__name__ = self.func.__name__
+
+        #set __doc__ for sandbox_app
+        remote_fn.__doc__ = """sandbox_app"""
+
         self.wrapped_remote_function = wrap_error(remote_fn)
- 
-       def __call__(self, *args, **kwargs):
-        
-        invocation_kwargs = {}
-        invocation_kwargs.update(self.kwargs)
-        invocation_kwargs.update(kwargs)
-
-        if self.data_flow_kernel is None:
-            dfk = WorkflowLoader.dfk()
-        else:
-            dfk = self.data_flow_kernel
-
-        app_fut = dfk.submit(self.wrapped_remote_function,
-                             app_args=args,
-                             executors=self.executors,
-                             cache=self.cache,
-                             ignore_for_cache=self.ignore_for_cache,
-                             app_kwargs=invocation_kwargs)
-
-        return app_fut
