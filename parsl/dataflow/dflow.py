@@ -611,6 +611,7 @@ class DataFlowKernel(object):
         
         for idx, f in enumerate(inputs):
             (inputs[idx], func) = self.data_manager.optionally_stage_in(f, func, executor)
+            print(inputs[idx])
 
         for kwarg, f in kwargs.items():
             (kwargs[kwarg], func) = self.data_manager.optionally_stage_in(f, func, executor)
@@ -839,17 +840,6 @@ class DataFlowKernel(object):
 
         app_fu = AppFuture(task_def)
 
-        # Transform remote input files to data futures
-        app_args, app_kwargs, func = self._add_input_deps(executor, app_args, app_kwargs, func)
-
-        func = self._add_output_deps(executor, app_args, app_kwargs, app_fu, func)
-
-        task_def.update({
-                    'args': app_args,
-                    'func': func,
-                    'kwargs': app_kwargs,
-                    'app_fu': app_fu})
-
         # update task_def for sandbox_app
         if func.__doc__=="sandbox_app":
             workflow_app_name = ""
@@ -863,6 +853,17 @@ class DataFlowKernel(object):
                 'workflow_schema':None,
                 'workflow_app_working_directory':None
             })
+        
+        # Transform remote input files to data futures
+        app_args, app_kwargs, func = self._add_input_deps(executor, app_args, app_kwargs, func)
+
+        func = self._add_output_deps(executor, app_args, app_kwargs, app_fu, func)
+
+        task_def.update({
+                    'args': app_args,
+                    'func': func,
+                    'kwargs': app_kwargs,
+                    'app_fu': app_fu})
         
         if task_id in self.tasks:
             raise DuplicateTaskError(
