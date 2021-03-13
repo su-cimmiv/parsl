@@ -611,7 +611,6 @@ class DataFlowKernel(object):
         
         for idx, f in enumerate(inputs):
             (inputs[idx], func) = self.data_manager.optionally_stage_in(f, func, executor)
-            print(inputs[idx])
 
         for kwarg, f in kwargs.items():
             (kwargs[kwarg], func) = self.data_manager.optionally_stage_in(f, func, executor)
