@@ -54,6 +54,22 @@ class Sandbox(object):
          """
          return "cd "+self.working_directory+" \n"
     
+    def _file_input_info(self, inFile):
+        """
+        Given in input a string as type 
+        workflow://workflow_unique_name/working_dir/file_out_name,
+        with a split by the /, return the info for the stage-in 
+        operation of the sandbox.
+        
+        """
+
+        info = inFile.split("/")
+        workflow_name = info[0]
+        working_directory = info[1]
+        output_file_name = info[2]
+        
+        return workflow_name, working_directory, output_file_name
+    
     def pre_run(self, executable, inputs = [], removedir=False):
         command=""
         if inputs is None :
@@ -61,15 +77,26 @@ class Sandbox(object):
             command+=self.no_copy()
             command+=executable+"\n"
         else:
-            #go in the project folder
-            command+="cd "+parsl.dfk().workflow_name+" \n\n"
-            #for each input file resolve workflow:// schema
+            #take the input
             inFile = inputs
-            #copy files to current directory
+            #for each input file
             for i in range(len(inFile)):
-                command+="cp --parents "+inFile[i]+" "+self.working_directory+"/ \n"
+                #take the info from the string
+                wf_name,wd,output_file_name = self._file_input_info(inFile[i])
+                #go into workflow root
+                command+="cd "+wf_name+" \n"
+                #if the workflow_name is equal to the current workflow, 
+                #the directory target is in the current directory
+                if wf_name == parsl.dfk().workflow_name:
+                    command+="cp --parents "+wd+"/"+output_file_name+" "+self.working_directory+"/ \n"
+                else:
+                    #else copy the directory from the workflow root
+                    command+="cp --parents "+wd+"/"+output_file_name+" ../"+parsl.dfk().workflow_name+"/"+self.working_directory+" / \n"
+                command+="cd ../  \n"
+                #now the app must work only with the file imported in the working direcotry
+                executable = executable.replace(wf_name+"/","")
             #go into the working dir of the app
-            command+='cd '+self.working_directory+"\n"
+            command+='cd '+parsl.dfk().workflow_name+"/"+self.working_directory+"\n"
             command+=executable+"\n"
             
             dirname = None
@@ -85,7 +112,8 @@ class Sandbox(object):
                 for i in range(len(inFile)):
                     path = inFile[i]
                     dirname = path.split("/")
-                    command+="\nmv "+dirname[0]+"/ "+dirname[0]+"_old/ \n"
+                    command+="\nmv "+dirname[1]+"/ "+dirname[1]+"_old/ \n"
+        
         return command
 
 
@@ -130,6 +158,7 @@ def sandbox_executor(func, *args, **kwargs):
     sandbox.createWorkingDirectory(func_name)
     #app name retuned 
     app_name = kwargs.get("workflow_app_name","")
+    print(app_name)
     # workflow schema as workflow:///funcNameUUID
     workflow_schema = "workflow://"+parsl.dfk().workflow_name+"/"+app_name
     
