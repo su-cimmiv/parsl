@@ -608,8 +608,10 @@ class DataFlowKernel(object):
             return args, kwargs, func
 
         inputs = kwargs.get('inputs', [])
+        
         for idx, f in enumerate(inputs):
             (inputs[idx], func) = self.data_manager.optionally_stage_in(f, func, executor)
+            print(inputs[idx])
 
         for kwarg, f in kwargs.items():
             (kwargs[kwarg], func) = self.data_manager.optionally_stage_in(f, func, executor)
@@ -849,6 +851,20 @@ class DataFlowKernel(object):
                     'kwargs': app_kwargs,
                     'app_fu': app_fu})
 
+        # update task_def for sandbox_app
+        if func.__doc__=="sandbox_app":
+            workflow_app_name = ""
+            if 'workflow_app_name' in app_kwargs :
+                workflow_app_name = app_kwargs.get('workflow_app_name',"")
+            if workflow_app_name == "":
+                workflow_app_name = func.__name__+'-'+str(task_id)
+            
+            task_def.update({
+                'workflow_app_name':workflow_app_name,
+                'workflow_schema':None,
+                'workflow_app_working_directory':None
+            })
+        
         if task_id in self.tasks:
             raise DuplicateTaskError(
                 "internal consistency error: Task {0} already exists in task list".format(task_id))
