@@ -49,7 +49,7 @@ class Sandbox(object):
 
     def no_copy(self):
          """ 
-         If the command does not require files, just move to the task works directory
+         If the command does not require files, just move to the task working directory
          
          """
          return "cd "+parsl.dfk().workflow_name+"/"+self.working_directory+" \n"
@@ -186,7 +186,6 @@ def sandbox_executor(func, *args, **kwargs):
     else:
         #if no inputs field is in the kwargs, execute the command in the working directory of the app
         executable = sandbox.pre_run(executable,None)
-
     # Updating stdout, stderr if values passed at call time.
 
     def open_std_fd(fdname):
