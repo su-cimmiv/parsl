@@ -188,7 +188,7 @@ def sandbox_executor(func, *args, **kwargs):
     else:
         #if no inputs field is in the kwargs, execute the command in the working directory of the app
         executable = sandbox.pre_run(executable,None)
-    print(executable)
+
     # Updating stdout, stderr if values passed at call time.
 
     def open_std_fd(fdname):
