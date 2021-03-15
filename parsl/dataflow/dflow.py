@@ -444,10 +444,11 @@ class DataFlowKernel(object):
         return result
 
     def wipe_task(self, task_id):
-        """ Remove task with task_id from the internal tasks table
+        """ Remove task with task_id from the internal tasks table 
         """
-        #if self.config.garbage_collect:
-            #del self.tasks[task_id]
+        #if the task is a sandbox_app, do not cancel from tasks table
+        if self.config.garbage_collect and self.tasks[task_id].get("type")!="sandbox_app":
+            del self.tasks[task_id]
 
     @staticmethod
     def check_staging_inhibited(kwargs):
@@ -612,41 +613,7 @@ class DataFlowKernel(object):
                 break
         
         return working_directory
-
-
-    def _add_input_deps_sandbox_app(self, executor, kwargs, func):
-        """ Look for inputs of the app that are file.
-        We know that the sandbox_app is fed into the input strings representing the workflow://schema.
-        Solving workflows://schema, the files on which the app depends are founded.
-        Give the data manager the opportunity to replace a file with a data future for that file,
-        for example wrapping the result of a staging action.
-
-        Args:
-            - executor (str) : executor where the app is going to be launched
-            - kwargs (Dict) : Kwargs to app function
-        """
-
-        # Return if the task is a data management task, rather than doing
-        #  data management on it.
-        if self.check_staging_inhibited(kwargs):
-            logger.debug("Not performing input staging")
-            return  kwargs, func
-
-        inputs = kwargs.get('inputs', [])
         
-        for i in range(len(inputs)):
-            inFile = inputs[i].replace(self.SCHEMA,"")
-            info = inFile.split("/")
-            #info[0] = workflow_name #info[1] = app_name
-            app_name = info[1]
-            working_directory = self._get_scratch_directory_app(app_name)
-            inFile = inFile.replace(app_name,working_directory) #replace workflow_app_name with the wd path
-            inputs[i] = inFile
-            
-        return kwargs,func
-
-
-
     def _add_input_deps(self, executor, args, kwargs, func):
         """Look for inputs of the app that are files. Give the data manager
         the opportunity to replace a file with a data future for that file,
@@ -665,6 +632,17 @@ class DataFlowKernel(object):
             return args, kwargs, func
 
         inputs = kwargs.get('inputs', [])
+        for i in range(len(inputs)):
+            if isinstance(inputs[i],str) and self.SCHEMA in inputs[i]:
+                inFile = inputs[i].replace(self.SCHEMA,"")
+                info = inFile.split("/")
+                #info[0] = workflow_name #info[1] = app_name
+                app_name = info[1]
+                working_directory = self._get_scratch_directory_app(app_name)
+                inFile = inFile.replace(app_name,working_directory) #replace workflow_app_name with the wd path
+                inputs[i] = inFile
+                
+
         
         for idx, f in enumerate(inputs):
             (inputs[idx], func) = self.data_manager.optionally_stage_in(f, func, executor)
@@ -904,24 +882,19 @@ class DataFlowKernel(object):
                 workflow_app_name = app_kwargs.get('workflow_app_name',"")
             if workflow_app_name == "":
                 workflow_app_name = func.__name__+'-'+str(task_id)
+            app_kwargs['workflow_app_name'] = workflow_app_name
+
             
             
             task_def.update({
                 'workflow_app_name':workflow_app_name,
                 'workflow_schema':None,
-                'workflow_app_working_directory':None
+                'workflow_app_working_directory':None,
+                'type':func.__doc__, #type using in wipe_task for garbage collector
             })
         
-        # Transform remote input files to data futures
-        if func.__doc__ == "sandbox_app":
-            #app_args, app_kwargs, func = self._add_input_deps(executor, app_args, app_kwargs, func)
-            
-            app_kwargs, func = self._add_input_deps_sandbox_app(executor,app_kwargs,func)
-            #update app_kwargs
-            app_kwargs['workflow_app_name'] = workflow_app_name
-
-        else:
-            app_args, app_kwargs, func = self._add_input_deps(executor, app_args, app_kwargs, func)
+        
+        app_args, app_kwargs, func = self._add_input_deps(executor, app_args, app_kwargs, func)
 
         func = self._add_output_deps(executor, app_args, app_kwargs, app_fu, func)
 
