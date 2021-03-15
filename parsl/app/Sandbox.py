@@ -11,11 +11,9 @@ from parsl.dataflow.dflow import DataFlowKernelLoader
 
 import os
 import time
-import datetime
 import hashlib
-import datetime
 import json
-import time
+import re
 
 from uuid import uuid4
 
@@ -24,9 +22,13 @@ class Sandbox(object):
 
     def __init__(self, project_name):
         self._working_directory = None
+        self._workflow_name = re.sub('[^a-zA-Z0-9 \n\.]', '', parsl.dfk().workflow_name)
         #self._project_name = project_name
 
-  
+    @property
+    def workflow_name(self):
+        return self._workflow_name
+
     @property
     def working_directory(self):
         return self._working_directory
@@ -44,15 +46,15 @@ class Sandbox(object):
 
     def createWorkingDirectory(self, label):
         self.working_directory = self.generateUniqueLabel(label)
-        wd = parsl.dfk().workflow_name +"/"+self.working_directory
+        wd = self.workflow_name +"/"+self.working_directory
         os.makedirs(wd)
 
     def no_copy(self):
          """ 
-         If the command does not require files, just move to the task working directory
+         If the command does not require files, just move to the task works directory
          
          """
-         return "cd "+parsl.dfk().workflow_name+"/"+self.working_directory+" \n"
+         return "cd "+self.workflow_name +"/"+self.working_directory+" \n"
     
     def _file_input_info(self, inFile):
         """
@@ -87,16 +89,16 @@ class Sandbox(object):
                 command+="cd "+wf_name+" \n"
                 #if the workflow_name is equal to the current workflow, 
                 #the directory target is in the current directory
-                if wf_name == parsl.dfk().workflow_name:
+                if wf_name == self.workflow_name :
                     command+="cp --parents "+wd+"/"+output_file_name+" "+self.working_directory+"/ \n"
                 else:
                     #else copy the directory from the workflow root
-                    command+="cp --parents "+wd+"/"+output_file_name+" ../"+parsl.dfk().workflow_name+"/"+self.working_directory+" / \n"
+                    command+="cp --parents "+wd+"/"+output_file_name+" ../"+self.workflow_name +"/"+self.working_directory+" / \n"
                 command+="cd ../  \n"
                 #now the app must work only with the file imported in the working direcotry
                 executable = executable.replace(wf_name+"/","")
             #go into the working dir of the app
-            command+='cd '+parsl.dfk().workflow_name+"/"+self.working_directory+"\n"
+            command+='cd '+self.workflow_name +"/"+self.working_directory+"\n"
             command+=executable+"\n"
             
             dirname = None
@@ -159,7 +161,7 @@ def sandbox_executor(func, *args, **kwargs):
     #app name retuned 
     app_name = kwargs.get("workflow_app_name","")
     # workflow schema as workflow:///funcNameUUID
-    workflow_schema = "workflow://"+parsl.dfk().workflow_name+"/"+app_name
+    workflow_schema = "workflow://"+sandbox.workflow_name+"/"+app_name
     
     # Try to run the func to compose the commandline
     try:
@@ -186,6 +188,7 @@ def sandbox_executor(func, *args, **kwargs):
     else:
         #if no inputs field is in the kwargs, execute the command in the working directory of the app
         executable = sandbox.pre_run(executable,None)
+    print(executable)
     # Updating stdout, stderr if values passed at call time.
 
     def open_std_fd(fdname):
@@ -226,8 +229,8 @@ def sandbox_executor(func, *args, **kwargs):
         'workflow_app_name':app_name
         }
 
-        if cwd is not None:
-            os.chdir(cwd)
+        # if cwd is not None:
+        #     os.chdir(cwd)
 
     except subprocess.TimeoutExpired:
         raise pe.AppTimeout("[{}] App exceeded walltime: {}".format(func_name, timeout))
