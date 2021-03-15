@@ -52,7 +52,7 @@ class Sandbox(object):
          If the command does not require files, just move to the task works directory
          
          """
-         return "cd "+self.working_directory+" \n"
+         return "cd "+parsl.dfk().workflow_name+"/"+self.working_directory+" \n"
     
     def _file_input_info(self, inFile):
         """
