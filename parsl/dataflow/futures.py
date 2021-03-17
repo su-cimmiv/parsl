@@ -86,10 +86,6 @@ class AppFuture(Future):
         return self.result()['workflow_schema']
     
     @property
-    def workflow_app_name(self):
-        return self.result()['workflow_app_name']
-    
-    @property
     def working_directory(self):
         return self.result()['working_directory']
 
