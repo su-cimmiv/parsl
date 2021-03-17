@@ -1,6 +1,9 @@
 from functools import update_wrapper
 from functools import partial
 from inspect import signature, Parameter
+from socket import gethostname, gethostbyname
+
+
 
 import parsl
 
@@ -8,6 +11,7 @@ from parsl.app.bash import BashApp
 from parsl.app.errors import wrap_error
 from parsl.data_provider.files import File
 from parsl.dataflow.dflow import DataFlowKernelLoader
+from parsl.data_provider.sandbox_stager import SandboxStager
 
 import os
 import time
@@ -15,7 +19,6 @@ import hashlib
 import json
 import re
 
-from uuid import uuid4
 
 
 class Sandbox(object):
@@ -23,7 +26,15 @@ class Sandbox(object):
     def __init__(self, project_name):
         self._working_directory = None
         self._workflow_name = re.sub('[^a-zA-Z0-9 \n\.]', '', parsl.dfk().workflow_name)
+        self._tasks_dep = []
+
         #self._project_name = project_name
+
+    @property
+    def tasks_dep(self):
+        return self._tasks_dep
+        
+
 
     @property
     def workflow_name(self):
@@ -49,75 +60,60 @@ class Sandbox(object):
         wd = self.workflow_name +"/"+self.working_directory
         os.makedirs(wd)
 
-    def no_copy(self):
+    def pre_execute(self):
          """ 
          If the command does not require files, just move to the task works directory
-         
          """
          return "cd "+self.workflow_name +"/"+self.working_directory+" \n"
-    
-    def _file_input_info(self, inFile):
-        """
-        Given in input a string as type 
-        workflow://workflow_unique_name/working_dir/file_out_name,
-        with a split by the /, return the info for the stage-in 
-        operation of the sandbox.
-        
+         
+    def pre_process(self, executable, inputs = []):
         """
 
-        info = inFile.split("/")
-        workflow_name = info[0]
-        working_directory = info[1]
-        output_file_name = info[2]
+        This method resolve the workflow://schema. 
         
-        return workflow_name, working_directory, output_file_name
-    
-    def pre_run(self, executable, inputs = [], removedir=False):
-        command=""
-        if inputs is None :
-            
-            command+=self.no_copy()
-            command+=executable+"\n"
-        else:
-            #take the input
-            inFile = inputs
-            #for each input file
-            for i in range(len(inFile)):
-                #take the info from the string
-                wf_name,wd,output_file_name = self._file_input_info(inFile[i])
-                #go into workflow root
-                command+="cd "+wf_name+" \n"
-                #if the workflow_name is equal to the current workflow, 
-                #the directory target is in the current directory
-                if wf_name == self.workflow_name :
-                    command+="cp --parents "+wd+"/"+output_file_name+" "+self.working_directory+"/ \n"
-                else:
-                    #else copy the directory from the workflow root
-                    command+="cp --parents "+wd+"/"+output_file_name+" ../"+self.workflow_name +"/"+self.working_directory+" / \n"
-                command+="cd ../  \n"
-                #now the app must work only with the file imported in the working direcotry
-                executable = executable.replace(wf_name+"/","")
-            #go into the working dir of the app
-            command+='cd '+self.workflow_name +"/"+self.working_directory+"\n"
-            command+=executable+"\n"
-            
-            dirname = None
-            path = None
-            if removedir == True:
-                for i in range(len(inFile)):
-                    if isinstance(inFile[i],File):
-                        path = inFile[i].filepath
-                    else:
-                        path = inFile[i]
-                    command+="rm -r "+dirname[0]+"/ \n"
-            else:
-                for i in range(len(inFile)):
-                    path = inFile[i]
-                    dirname = path.split("/")
-                    command+="\nmv "+dirname[1]+"/ "+dirname[1]+"_old/ \n"
+
+        """
+
+        executable = executable.replace(parsl.dfk().SCHEMA,"")
+        command = ""
+        stager = SandboxStager()
+        for i in range(len(inputs)):
+            info = inputs[i].replace(parsl.dfk().SCHEMA,"").split("/")
+            self.tasks_dep.append(parsl.dfk()._get_app_info(info[1]))
+            if self.tasks_dep[i]['ip'] == gethostbyname(gethostname()):
+                command+=stager.cp_command(info[0]+"/"+self.tasks_dep[i]['app_fu'].result()['working_directory']
+                                            ,self.workflow_name+"/"+self.working_directory)
+                executable = executable.replace(info[0]+"/"+info[1],self.tasks_dep[i]['app_fu'].result()['working_directory'])
+                command+="\n"
+                command+=self.pre_execute()
+                command+=executable
         
         return command
 
+    def define_command(self, executable,inputs=[]):
+        """
+        This method prepare the command that must be executed.
+        If inputs len is 0, the app does not requier any input file
+        and the pre_execute method is called.
+
+        If the app requires same input file, pre_process method is
+        called for resolve workflow://schema.
+        pre_process call the stager for the import of files from 
+        the scratches of other task into the scratch of the 
+        current
+
+
+        """
+        command = ""
+        if len(inputs)==0:
+            command+=self.pre_execute()
+            command+=executable
+        else:
+            command += self.pre_process(executable,inputs)
+
+        return command
+    
+    
 
 #the sandbox executor
 def sandbox_executor(func, *args, **kwargs):
@@ -180,15 +176,9 @@ def sandbox_executor(func, *args, **kwargs):
     except Exception as e:
         raise e
     
-    #if there is an 'inputs' field in kwargs and it is not None, create the command using the sandbox
-    if 'inputs' in kwargs and kwargs.get('inputs',[]) is not None:
-        #update the kwargs for the app
-        inputs = kwargs.get("inputs",[])
-        executable = sandbox.pre_run(executable,inputs)
-    else:
-        #if no inputs field is in the kwargs, execute the command in the working directory of the app
-        executable = sandbox.pre_run(executable,None)
-
+    executable = sandbox.define_command(executable,kwargs.get('inputs',[]))
+    
+    
     # Updating stdout, stderr if values passed at call time.
 
     def open_std_fd(fdname):
