@@ -629,17 +629,6 @@ class DataFlowKernel(object):
             return args, kwargs, func
 
         inputs = kwargs.get('inputs', [])
-        '''for i in range(len(inputs)):
-            if isinstance(inputs[i],str) and self.SCHEMA in inputs[i]:
-                inFile = inputs[i].replace(self.SCHEMA,"")
-                info = inFile.split("/")
-                #info[0] = workflow_name #info[1] = app_name
-                app_name = info[1]
-                working_directory = self._get_scratch_directory_app(app_name)
-                inFile = inFile.replace(app_name,working_directory) #replace workflow_app_name with the wd path
-                inputs[i] = inFile'''
-                
-
         
         for idx, f in enumerate(inputs):
             (inputs[idx], func) = self.data_manager.optionally_stage_in(f, func, executor)
