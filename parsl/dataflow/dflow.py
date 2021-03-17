@@ -13,7 +13,7 @@ import datetime
 from getpass import getuser
 from typing import Any, Dict, List, Optional, Sequence
 from uuid import uuid4
-from socket import gethostname
+from socket import gethostname, gethostbyname
 from concurrent.futures import Future
 from functools import partial
 
@@ -594,7 +594,7 @@ class DataFlowKernel(object):
         return exec_fu
     
 
-    def _get_scratch_directory_app(self,app_name):
+    def _get_app_info(self,app_name):
         """ Find the working directory of the task the current task depends on
         We know that to the sandbox_app are passed strings containing workflow:// schema
         Assuming that a workflow_app_name is associated  to the sandbox_app when
@@ -607,10 +607,7 @@ class DataFlowKernel(object):
             #value in this case is still a key of an internal dict
             # if the value of 'workflow_app_name' is equal to the app_name passed                    
             if value['workflow_app_name'] == app_name:
-                #now we are able to know the name of the app's working_directory on which the current app depends
-                working_directory = value['app_fu'].result()['working_directory']
-                self.tasks[key]['workflow_app_working_directory'] = working_directory
-                break
+                return value
         
         return working_directory
         
@@ -632,7 +629,7 @@ class DataFlowKernel(object):
             return args, kwargs, func
 
         inputs = kwargs.get('inputs', [])
-        for i in range(len(inputs)):
+        '''for i in range(len(inputs)):
             if isinstance(inputs[i],str) and self.SCHEMA in inputs[i]:
                 inFile = inputs[i].replace(self.SCHEMA,"")
                 info = inFile.split("/")
@@ -640,7 +637,7 @@ class DataFlowKernel(object):
                 app_name = info[1]
                 working_directory = self._get_scratch_directory_app(app_name)
                 inFile = inFile.replace(app_name,working_directory) #replace workflow_app_name with the wd path
-                inputs[i] = inFile
+                inputs[i] = inFile'''
                 
 
         
@@ -888,9 +885,10 @@ class DataFlowKernel(object):
             
             task_def.update({
                 'workflow_app_name':workflow_app_name,
-                'workflow_schema':None,
-                'workflow_app_working_directory':None,
                 'type':func.__doc__, #type using in wipe_task for garbage collector
+                'user': getuser(),
+                'hostname': gethostname(),
+                'ip':gethostbyname(gethostname())
             })
         
         
