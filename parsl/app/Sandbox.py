@@ -34,8 +34,6 @@ class Sandbox(object):
     def tasks_dep(self):
         return self._tasks_dep
         
-
-
     @property
     def workflow_name(self):
         return self._workflow_name
@@ -205,8 +203,7 @@ def sandbox_executor(func, *args, **kwargs):
 
     return_value = None
     try:
-        cwd = None
-        cwd = os.getcwd() #current working dir
+        
         logger.debug("workflow://schema: %s", workflow_schema)
         
         proc = subprocess.Popen(executable,stdout=std_out, stderr=std_err, shell=True, executable='/bin/bash')
@@ -216,11 +213,7 @@ def sandbox_executor(func, *args, **kwargs):
         'workflow_schema': workflow_schema,
         'return_code' : proc.returncode,
         'working_directory':sandbox.working_directory,
-        'workflow_app_name':app_name
         }
-
-        # if cwd is not None:
-        #     os.chdir(cwd)
 
     except subprocess.TimeoutExpired:
         raise pe.AppTimeout("[{}] App exceeded walltime: {}".format(func_name, timeout))
