@@ -674,6 +674,7 @@ class DataFlowKernel(object):
                 logger.debug("Not performing output staging for: {}".format(repr(f)))
                 app_fut._outputs.append(DataFuture(app_fut, f, tid=app_fut.tid))
         return func
+        
 
     def _gather_all_deps(self, args: Sequence[Any], kwargs: Dict[str, Any]) -> List[Future]:
         """Assemble a list of all Futures passed as arguments, kwargs or in the inputs kwarg.
@@ -691,6 +692,11 @@ class DataFlowKernel(object):
         def check_dep(d):
             if isinstance(d, Future):
                 depends.extend([d])
+        
+        def get_sandbox_app_name(dep):
+            dep = dep.replace(self.SCHEMA,"")
+            dep = dep.split("/")
+            return self._find_task_by_name(dep[1])['app_fu']
 
         # Check the positional args
         for dep in args:
@@ -703,6 +709,8 @@ class DataFlowKernel(object):
 
         # Check for futures in inputs=[<fut>...]
         for dep in kwargs.get('inputs', []):
+            if type(dep) == str and self.SCHEMA in dep:
+                dep = get_sandbox_app_name(dep)
             check_dep(dep)
 
         return depends
@@ -867,14 +875,13 @@ class DataFlowKernel(object):
                 workflow_app_name = func.__name__+'-'+str(task_id)
             app_kwargs['workflow_app_name'] = workflow_app_name
 
-            
-            
             task_def.update({
                 'workflow_app_name':workflow_app_name,
                 'type':func.__doc__, #type using in wipe_task for garbage collector
                 'user': getuser(),
                 'hostname': gethostname(),
-                'ip':gethostbyname(gethostname())
+                'ip':gethostbyname(gethostname()),
+                'workflow_schema':self.SCHEMA+self.workflow_name+"/"+workflow_app_name
             })
         
         
