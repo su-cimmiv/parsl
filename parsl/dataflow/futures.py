@@ -83,7 +83,7 @@ class AppFuture(Future):
     
     @property
     def workflow_schema(self):
-        return self.result()['workflow_schema']
+        return self.task_def['workflow_schema']
     
     @property
     def working_directory(self):
