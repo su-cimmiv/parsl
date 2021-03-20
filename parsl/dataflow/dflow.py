@@ -601,7 +601,6 @@ class DataFlowKernel(object):
         the method submit is invoked, we can find the task by studying the task dict
         """
         
-        working_directory = ""  
         #For each key-value pair in tasks                    
         for key, value in self.tasks.items():
             #value in this case is still a key of an internal dict
