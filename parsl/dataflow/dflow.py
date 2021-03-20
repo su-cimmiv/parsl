@@ -594,11 +594,11 @@ class DataFlowKernel(object):
         return exec_fu
     
 
-    def _get_app_info(self,app_name):
-        """ Find the working directory of the task the current task depends on
+    def _find_task_by_name(self,app_name):
+        """ Find the the task on wich the current task depends on
         We know that to the sandbox_app are passed strings containing workflow:// schema
         Assuming that a workflow_app_name is associated  to the sandbox_app when
-        the method submit is invoked, we can find working_directory by studying the task dict
+        the method submit is invoked, we can find the task by studying the task dict
         """
         
         working_directory = ""  
@@ -608,8 +608,6 @@ class DataFlowKernel(object):
             # if the value of 'workflow_app_name' is equal to the app_name passed                    
             if value['workflow_app_name'] == app_name:
                 return value
-        
-        return working_directory
         
     def _add_input_deps(self, executor, args, kwargs, func):
         """Look for inputs of the app that are files. Give the data manager
