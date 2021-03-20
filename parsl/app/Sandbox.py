@@ -34,6 +34,8 @@ class Sandbox(object):
     def tasks_dep(self):
         return self._tasks_dep
         
+
+
     @property
     def workflow_name(self):
         return self._workflow_name
@@ -83,8 +85,8 @@ class Sandbox(object):
                                             ,self.workflow_name+"/"+self.working_directory)
                 executable = executable.replace(info[0]+"/"+info[1],self.tasks_dep[i]['app_fu'].result()['working_directory'])
                 command+="\n"
-                command+=self.pre_execute()
-                command+=executable
+        command+=self.pre_execute()
+        command+=executable
         
         return command
 
@@ -203,9 +205,10 @@ def sandbox_executor(func, *args, **kwargs):
 
     return_value = None
     try:
-        
+        cwd = None
+        cwd = os.getcwd() #current working dir
         logger.debug("workflow://schema: %s", workflow_schema)
-        
+        print(executable)
         proc = subprocess.Popen(executable,stdout=std_out, stderr=std_err, shell=True, executable='/bin/bash')
         proc.wait(timeout=timeout)
 
@@ -213,6 +216,7 @@ def sandbox_executor(func, *args, **kwargs):
         'workflow_schema': workflow_schema,
         'return_code' : proc.returncode,
         'working_directory':sandbox.working_directory,
+        'workflow_app_name':app_name
         }
 
     except subprocess.TimeoutExpired:
