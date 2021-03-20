@@ -79,7 +79,7 @@ class Sandbox(object):
         stager = SandboxStager()
         for i in range(len(inputs)):
             info = inputs[i].replace(parsl.dfk().SCHEMA,"").split("/")
-            self.tasks_dep.append(parsl.dfk()._get_app_info(info[1]))
+            self.tasks_dep.append(parsl.dfk()._find_task_by_name(info[1]))
             if self.tasks_dep[i]['ip'] == gethostbyname(gethostname()):
                 command+=stager.cp_command(info[0]+"/"+self.tasks_dep[i]['app_fu'].result()['working_directory']
                                             ,self.workflow_name+"/"+self.working_directory)
@@ -205,17 +205,19 @@ def sandbox_executor(func, *args, **kwargs):
 
     return_value = None
     try:
-        
+        cwd = None
+        cwd = os.getcwd() #current working dir
         logger.debug("workflow://schema: %s", workflow_schema)
-
+        print(executable)
         proc = subprocess.Popen(executable,stdout=std_out, stderr=std_err, shell=True, executable='/bin/bash')
         proc.wait(timeout=timeout)
 
         return_value = {
         'workflow_schema': workflow_schema,
         'return_code' : proc.returncode,
-        'working_directory':sandbox.working_directory
-         }
+        'working_directory':sandbox.working_directory,
+        'workflow_app_name':app_name
+        }
 
     except subprocess.TimeoutExpired:
         raise pe.AppTimeout("[{}] App exceeded walltime: {}".format(func_name, timeout))
