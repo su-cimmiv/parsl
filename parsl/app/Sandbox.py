@@ -130,7 +130,7 @@ class Sandbox(object):
     
 
 #the sandbox executor
-def sandbox_executor(func, *args, **kwargs):
+def sandbox_runner(func, *args, **kwargs):
     """Executes the supplied function with *args and **kwargs to get a
     command-line to run, and then run that command-line using bash.
     """
@@ -276,11 +276,11 @@ class SandboxApp(BashApp):
             if sig.parameters[s].default is not Parameter.empty:
                 self.kwargs[s] = sig.parameters[s].default
 
-        # update_wrapper allows sandbox_executor to masquerade as self.func
-        # partial is used to attach the first arg the "func" to the sandbox_executor
+        # update_wrapper allows sandbox_runner to masquerade as self.func
+        # partial is used to attach the first arg the "func" to the sandbox_runner
         # this is done to avoid passing a function type in the args which parsl.serializer
         # doesn't support
-        remote_fn = partial(update_wrapper(sandbox_executor, self.func), self.func)
+        remote_fn = partial(update_wrapper(sandbox_runner, self.func), self.func)
         remote_fn.__name__ = self.func.__name__
 
         #set __doc__ for sandbox_app
