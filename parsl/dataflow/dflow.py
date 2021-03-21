@@ -881,7 +881,7 @@ class DataFlowKernel(object):
                 'user': getuser(),
                 'hostname': gethostname(),
                 'ip':gethostbyname(gethostname()),
-                'workflow_schema':self.SCHEMA+self.workflow_name+"/"+workflow_app_name
+                'workflow_schema':self.SCHEMA+"/"+workflow_app_name if app_kwargs.get('project',"")=="" else self.SCHEMA+app_kwargs.get('project',"")+"/"+workflow_app_name
             })
         
         
