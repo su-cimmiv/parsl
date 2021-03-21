@@ -23,19 +23,20 @@ import re
 
 class Sandbox(object):
 
-    def __init__(self, project_name):
+    def __init__(self):
         self._working_directory = None
-        self._workflow_name = re.sub('[^a-zA-Z0-9 \n\.]', '', parsl.dfk().workflow_name)
+        self._workflow_name = ""
         self._tasks_dep = []
-
-        #self._project_name = project_name
+        self._app_name = ""
+    
+    @property
+    def app_name(self):
+        return self._app_name
 
     @property
     def tasks_dep(self):
         return self._tasks_dep
-        
-
-
+ 
     @property
     def workflow_name(self):
         return self._workflow_name
@@ -43,28 +44,40 @@ class Sandbox(object):
     @property
     def working_directory(self):
         return self._working_directory
+    
     @working_directory.setter
     def working_directory(self,value):
         self._working_directory = value
+    
+    @workflow_name.setter
+    def workflow_name(self,value):
+        self._workflow_name = value
+    
+    @app_name.setter
+    def app_name(self,value):
+        self._app_name = value
+
         
 
     def generateUniqueLabel(self, label): 
         """
         Generates a unique name for the scratch directory 
         """
+        app_name = self.app_name.split("-")
         millis = int(round(time.time() * 1000))
-        return str(millis) + "-" + label
+        return str(millis) + "-" + label+"-"+app_name[1]
 
     def createWorkingDirectory(self, label):
         self.working_directory = self.generateUniqueLabel(label)
-        wd = self.workflow_name +"/"+self.working_directory
+        wd = self.workflow_name +"/"+self.working_directory if self.workflow_name!="" else self.working_directory
         os.makedirs(wd)
 
     def pre_execute(self):
          """ 
          If the command does not require files, just move to the task works directory
          """
-         return "cd "+self.workflow_name +"/"+self.working_directory+" \n"
+         command = "cd "+self.workflow_name +"/"+self.working_directory+" \n" if self.workflow_name!="" else "cd "+self.working_directory+"\n"
+         return command
          
     def pre_process(self, executable, inputs = []):
         """
@@ -81,8 +94,9 @@ class Sandbox(object):
             info = inputs[i].replace(parsl.dfk().SCHEMA,"").split("/")
             self.tasks_dep.append(parsl.dfk()._find_task_by_name(info[1]))
             if self.tasks_dep[i]['ip'] == gethostbyname(gethostname()):
-                command+=stager.cp_command(info[0]+"/"+self.tasks_dep[i]['app_fu'].result()['working_directory']
-                                            ,self.workflow_name+"/"+self.working_directory)
+                src = info[0]+"/"+self.tasks_dep[i]['app_fu'].result()['working_directory'] if info[0] != "" else self.tasks_dep[i]['app_fu'].result()['working_directory']
+                dst = self.workflow_name+"/"+self.working_directory if self.workflow_name != "" else self.working_directory
+                command+= stager.cp_command(src,dst)                
                 executable = executable.replace(info[0]+"/"+info[1],self.tasks_dep[i]['app_fu'].result()['working_directory'])
                 command+="\n"
         command+=self.pre_execute()
@@ -132,7 +146,7 @@ def sandbox_executor(func, *args, **kwargs):
     import json
 
     #create a sandbox passing the name of the scratch directory
-    sandbox = Sandbox("")
+    sandbox = Sandbox()
 
     logbase = "/tmp"
     format_string = "%(asctime)s.%(msecs)03d %(name)s:%(lineno)d [%(levelname)s]  %(message)s"
@@ -151,13 +165,18 @@ def sandbox_executor(func, *args, **kwargs):
     func_name = func.__name__
 
     executable = None
+        
+    #the workflow_name
+    sandbox.workflow_name = kwargs.get('project',"")
+    
+    #app name retuned 
+    sandbox.app_name = kwargs.get("workflow_app_name","")
     
     #create a working dir with the sandbox
     sandbox.createWorkingDirectory(func_name)
-    #app name retuned 
-    app_name = kwargs.get("workflow_app_name","")
+
     # workflow schema as workflow:///funcNameUUID
-    workflow_schema = "workflow://"+sandbox.workflow_name+"/"+app_name
+    workflow_schema = "workflow://"+sandbox.workflow_name+"/"+sandbox.app_name
     
     # Try to run the func to compose the commandline
     try:
@@ -176,8 +195,8 @@ def sandbox_executor(func, *args, **kwargs):
     except Exception as e:
         raise e
     
+    #update the command to be executed
     executable = sandbox.define_command(executable,kwargs.get('inputs',[]))
-    
     
     # Updating stdout, stderr if values passed at call time.
 
