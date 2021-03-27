@@ -36,6 +36,8 @@ from parsl.utils import get_version, get_std_fname_mode, get_all_checkpoints
 
 from parsl.monitoring.message_type import MessageType
 
+from shutil import move
+
 logger = logging.getLogger(__name__)
 
 
@@ -435,6 +437,11 @@ class DataFlowKernel(object):
 
         with task_record['app_fu']._update_lock:
             task_record['app_fu'].set_result(result)
+        
+        if len(task_record['depends'])!=0:
+                for i in range(len(task_record['depends'])):
+                    if self.tasks[task_record['depends'][i].tid]['type'] == 'sandbox_app':
+                        self._decrement_reference_count_to_sandbox_app(task_record['depends'][i].tid)
 
     @staticmethod
     def _unwrap_remote_exception_wrapper(future: Future) -> Any:
@@ -594,6 +601,31 @@ class DataFlowKernel(object):
         return exec_fu
     
 
+    
+    def _decrement_reference_count_to_sandbox_app(self, task_id):
+        """ Decrease the sandbox_app reference counter. 
+        If the counter has reached 0, delete the scratch directory of the sandbox_app because there are no other sandbox_app depending on it.
+        """
+        self.tasks[task_id]['count_ref'] -= 1
+        logger.info('Decremented reference to task {}'.format(task_id))
+        if self.tasks[task_id]['count_ref'] == 0:
+            #take the name of the workflow
+            info = self.tasks[task_id]['workflow_schema'].replace(self.SCHEMA,"")
+            info = info.split("/")
+            #path wd of the task
+            task_wd = info[0]+"/"+self.tasks[task_id]['app_fu'].result()['working_directory'] if info[0] != "" else self.tasks[task_id]['app_fu'].result()['working_directory']
+            move(task_wd,task_wd+"_old")
+
+            logger.info('removed scracth directory of task {}'.format(task_id))
+            #delete the task from tasks table
+            del self.tasks[task_id]
+    
+    def _increment_reference_count_to_sandbox_app(self, task_id):
+        """ Increase sandbox_app reference counter
+        """
+        self.tasks[task_id]['count_ref'] += 1
+        logger.info("Added reference to task {}".format(task_id))
+
     def _find_task_by_name(self,app_name):
         """ Find the the task on wich the current task depends on
         We know that to the sandbox_app are passed strings containing workflow:// schema
@@ -604,9 +636,10 @@ class DataFlowKernel(object):
         #For each key-value pair in tasks                    
         for key, value in self.tasks.items():
             #value in this case is still a key of an internal dict
-            # if the value of 'workflow_app_name' is equal to the app_name passed                    
+            # if the value of 'workflow_app_name' is equal to the app_name passed
+            # return the key ( task_id)                 
             if value['workflow_app_name'] == app_name:
-                return value
+                return key
         
     def _add_input_deps(self, executor, args, kwargs, func):
         """Look for inputs of the app that are files. Give the data manager
@@ -693,10 +726,13 @@ class DataFlowKernel(object):
             if isinstance(d, Future):
                 depends.extend([d])
         
-        def get_sandbox_app_name(dep):
+        def get_sandbox_app_future(dep):
             dep = dep.replace(self.SCHEMA,"")
             dep = dep.split("/")
-            return self._find_task_by_name(dep[1])['app_fu']
+            task_id = self._find_task_by_name(dep[1])
+            self._increment_reference_count_to_sandbox_app(task_id)
+
+            return self.tasks[task_id]['app_fu']
 
         # Check the positional args
         for dep in args:
@@ -710,7 +746,7 @@ class DataFlowKernel(object):
         # Check for futures in inputs=[<fut>...]
         for dep in kwargs.get('inputs', []):
             if type(dep) == str and self.SCHEMA in dep:
-                dep = get_sandbox_app_name(dep)
+                dep = get_sandbox_app_future(dep)
             check_dep(dep)
 
         return depends
@@ -881,7 +917,8 @@ class DataFlowKernel(object):
                 'user': getuser(),
                 'hostname': gethostname(),
                 'ip':gethostbyname(gethostname()),
-                'workflow_schema':self.SCHEMA+"/"+workflow_app_name if app_kwargs.get('project',"")=="" else self.SCHEMA+app_kwargs.get('project',"")+"/"+workflow_app_name
+                'workflow_schema':self.SCHEMA+"/"+workflow_app_name if app_kwargs.get('project',"")=="" else self.SCHEMA+app_kwargs.get('project',"")+"/"+workflow_app_name,
+                'count_ref':0
             })
         
         
