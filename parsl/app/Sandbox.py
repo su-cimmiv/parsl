@@ -26,17 +26,12 @@ class Sandbox(object):
     def __init__(self):
         self._working_directory = None
         self._workflow_name = ""
-        self._tasks_dep = []
         self._app_name = ""
     
     @property
     def app_name(self):
         return self._app_name
 
-    @property
-    def tasks_dep(self):
-        return self._tasks_dep
- 
     @property
     def workflow_name(self):
         return self._workflow_name
@@ -63,12 +58,12 @@ class Sandbox(object):
         """
         Generates a unique name for the scratch directory 
         """
-        app_name = self.app_name.split("-")
+        
         millis = int(round(time.time() * 1000))
-        return str(millis) + "-" + label+"-"+app_name[1]
+        return str(millis) + "-" + label
 
-    def createWorkingDirectory(self, label):
-        self.working_directory = self.generateUniqueLabel(label)
+    def createWorkingDirectory(self):
+        self.working_directory = self.generateUniqueLabel(self.app_name)
         wd = self.workflow_name +"/"+self.working_directory if self.workflow_name!="" else self.working_directory
         os.makedirs(wd)
 
@@ -78,7 +73,16 @@ class Sandbox(object):
          """
          command = "cd "+self.workflow_name +"/"+self.working_directory+" \n" if self.workflow_name!="" else "cd "+self.working_directory+"\n"
          return command
-         
+
+    def deps_info(self, input):
+        info = input.replace(parsl.dfk().SCHEMA,"")
+        info = info.split("/")
+        res =  parsl.dfk().tasks[parsl.dfk()._find_task_by_name(info[1])]
+        res.update({'workflow_name':info[0]})
+        return res
+
+
+
     def pre_process(self, executable, inputs = []):
         """
 
@@ -86,22 +90,19 @@ class Sandbox(object):
         
 
         """
-
         executable = executable.replace(parsl.dfk().SCHEMA,"")
         command = ""
         stager = SandboxStager()
         for i in range(len(inputs)):
-            info = inputs[i].replace(parsl.dfk().SCHEMA,"").split("/")
-            self.tasks_dep.append(parsl.dfk()._find_task_by_name(info[1]))
-            if self.tasks_dep[i]['ip'] == gethostbyname(gethostname()):
-                src = info[0]+"/"+self.tasks_dep[i]['app_fu'].result()['working_directory'] if info[0] != "" else self.tasks_dep[i]['app_fu'].result()['working_directory']
+            dep = self.deps_info(inputs[i])
+            if dep['ip'] == gethostbyname(gethostname()):
+                src = dep['workflow_name']+"/"+dep['app_fu'].result()['working_directory'] if dep['workflow_name'] !="" else dep['app_fu'].result()['working_directory']
                 dst = self.workflow_name+"/"+self.working_directory if self.workflow_name != "" else self.working_directory
-                command+= stager.cp_command(src,dst)                
-                executable = executable.replace(info[0]+"/"+info[1],self.tasks_dep[i]['app_fu'].result()['working_directory'])
+                command+= stager.cp_command(src,dst)
                 command+="\n"
+                executable = executable.replace(dep['workflow_name']+"/"+dep['workflow_app_name'], dep['app_fu'].result()['working_directory'])
         command+=self.pre_execute()
         command+=executable
-        
         return command
 
     def define_command(self, executable,inputs=[]):
@@ -169,11 +170,11 @@ def sandbox_runner(func, *args, **kwargs):
     #the workflow_name
     sandbox.workflow_name = kwargs.get('project',"")
     
-    #app name retuned 
+    #app name
     sandbox.app_name = kwargs.get("workflow_app_name","")
-    
+        
     #create a working dir with the sandbox
-    sandbox.createWorkingDirectory(func_name)
+    sandbox.createWorkingDirectory()
 
     # workflow schema as workflow:///funcNameUUID
     workflow_schema = "workflow://"+sandbox.workflow_name+"/"+sandbox.app_name
