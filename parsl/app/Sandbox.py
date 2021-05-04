@@ -20,14 +20,13 @@ import json
 import re
 
 
-
 class Sandbox(object):
-
+    
     def __init__(self):
         self._working_directory = None
         self._workflow_name = ""
         self._app_name = ""
-    
+
     @property
     def app_name(self):
         return self._app_name
@@ -52,13 +51,10 @@ class Sandbox(object):
     def app_name(self,value):
         self._app_name = value
 
-        
-
     def generateUniqueLabel(self, label): 
         """
         Generates a unique name for the scratch directory 
         """
-        
         millis = int(round(time.time() * 1000))
         return str(millis) + "-" + label
 
@@ -66,70 +62,69 @@ class Sandbox(object):
         self.working_directory = self.generateUniqueLabel(self.app_name)
         wd = self.workflow_name +"/"+self.working_directory if self.workflow_name!="" else self.working_directory
         os.makedirs(wd)
-
+    
     def pre_execute(self):
-         """ 
-         If the command does not require files, just move to the task works directory
-         """
-         command = "cd "+self.workflow_name +"/"+self.working_directory+" \n" if self.workflow_name!="" else "cd "+self.working_directory+"\n"
-         return command
-
-    def deps_info(self, input):
-        info = input.replace(parsl.dfk().SCHEMA,"")
-        info = info.split("/")
-        res =  parsl.dfk().tasks[parsl.dfk()._find_task_by_name(info[1])]
-        res.update({'workflow_name':info[0]})
-        return res
-
-
-
-    def pre_process(self, executable, inputs = []):
-        """
-
-        This method resolve the workflow://schema. 
-        
-
-        """
-        executable = executable.replace(parsl.dfk().SCHEMA,"")
         command = ""
-        stager = SandboxStager()
-        for i in range(len(inputs)):
-            dep = self.deps_info(inputs[i])
-            if dep['ip'] == gethostbyname(gethostname()):
-                src = dep['workflow_name']+"/"+dep['app_fu'].result()['working_directory'] if dep['workflow_name'] !="" else dep['app_fu'].result()['working_directory']
-                dst = self.workflow_name+"/"+self.working_directory if self.workflow_name != "" else self.working_directory
-                command+= stager.cp_command(src,dst)
-                command+="\n"
-                executable = executable.replace(dep['workflow_name']+"/"+dep['workflow_app_name'], dep['app_fu'].result()['working_directory'])
-        command+=self.pre_execute()
-        command+=executable
+        if self.workflow_name != "":
+            command+= 'cd '+self.workflow_name+"/"+self.working_directory+"; \n"
+        else:
+            command+='cd '+self.working_directory+"; \n"
         return command
 
-    def define_command(self, executable,inputs=[]):
+    def count_deps(self,script):
+        info = script.split(" ")
+        count = 0
+        for i in range(len(info)):
+            if 'workflow://' in info[i]:
+                count+=1
+        return count
+    
+    def resolve_workflow_schema(self,script):
+        """
+        This method resolve the workflow:// schema
+        """
+        stager = SandboxStager()
+        info = script.split(" ")
+        script = script.replace("workflow://","")
+        command = ""
+        for i in range(len(info)):
+            if 'workflow://' in info[i]:
+                dep_app_info = info[i].replace("workflow://","").split("/")
+                dep_app_wd = parsl.dfk().tasks[parsl.dfk()._find_task_by_name(dep_app_info[1])]['app_fu'].result()['working_directory']
+                dep_app_wf_name = dep_app_info[0]
+                src = dep_app_wf_name+"/"+dep_app_wd if dep_app_wf_name != "" else dep_app_wd
+                dst = self.workflow_name+"/"+self.working_directory if self.workflow_name != "" else self.working_directory
+                command += stager.cp_command(src,dst)
+                command += "\n"
+                script = script.replace(dep_app_wf_name+"/"+dep_app_info[1],dep_app_wd)
+        command += self.pre_execute()
+        command +="\n"
+        command += script
+        return command
+    
+    def define_command(self, script):
         """
         This method prepare the command that must be executed.
-        If inputs len is 0, the app does not requier any input file
+        If no workflow:// schema dep is matched the app does not requier any input file
         and the pre_execute method is called.
 
-        If the app requires same input file, pre_process method is
+        If the app requires same input file, 
+        workflow_schema resolver is
         called for resolve workflow://schema.
-        pre_process call the stager for the import of files from 
+        workflow_schema call the stager for the
+        import of files from 
         the scratches of other task into the scratch of the 
         current
-
-
         """
         command = ""
-        if len(inputs)==0:
-            command+=self.pre_execute()
-            command+=executable
+        count_dep = self.count_deps(script)
+        if count_dep != 0:
+            command += self.resolve_workflow_schema(script)
         else:
-            command += self.pre_process(executable,inputs)
-
+            command+=self.pre_execute()
+            command += script
         return command
     
-    
-
 #the sandbox executor
 def sandbox_runner(func, *args, **kwargs):
     """Executes the supplied function with *args and **kwargs to get a
@@ -166,7 +161,8 @@ def sandbox_runner(func, *args, **kwargs):
     func_name = func.__name__
 
     executable = None
-        
+    
+    print("KW: ",kwargs)
     #the workflow_name
     sandbox.workflow_name = kwargs.get('project',"")
     
@@ -181,9 +177,8 @@ def sandbox_runner(func, *args, **kwargs):
     
     # Try to run the func to compose the commandline
     try:
-
-        # Execute the func to get the commandline
-        executable = func(*args, **kwargs)
+         # Execute the func to get the commandline
+        executable =  sandbox.define_command(func(*args,**kwargs))
 
     except AttributeError as e:
         if executable is not None:
@@ -195,10 +190,7 @@ def sandbox_runner(func, *args, **kwargs):
         raise pe.AppBadFormatting("App formatting failed for app '{}' with IndexError: {}".format(func_name, e))
     except Exception as e:
         raise e
-    
-    #update the command to be executed
-    executable = sandbox.define_command(executable,kwargs.get('inputs',[]))
-    
+
     # Updating stdout, stderr if values passed at call time.
 
     def open_std_fd(fdname):
@@ -227,7 +219,7 @@ def sandbox_runner(func, *args, **kwargs):
     try:
         
         logger.debug("workflow://schema: %s", workflow_schema)
-        
+
         proc = subprocess.Popen(executable,stdout=std_out, stderr=std_err, shell=True, executable='/bin/bash')
         proc.wait(timeout=timeout)
 
@@ -262,12 +254,10 @@ def sandbox_runner(func, *args, **kwargs):
     return return_value
 
 class SandboxApp(BashApp):
-       def __init__(self, func, data_flow_kernel=None, cache=False, executors='all', ignore_for_cache=None):
+    def __init__(self, func, data_flow_kernel=None, cache=False, executors='all', ignore_for_cache=None):
         super().__init__(func, data_flow_kernel=data_flow_kernel, executors=executors, cache=cache, ignore_for_cache=ignore_for_cache)
         self.kwargs = {}
-
-        
-
+    
         # We duplicate the extraction of parameter defaults
         # to self.kwargs to ensure availability at point of
         # command string format. Refer: #349
@@ -288,3 +278,35 @@ class SandboxApp(BashApp):
         remote_fn.__doc__ = """sandbox_app"""
 
         self.wrapped_remote_function = wrap_error(remote_fn)
+    
+    def __call__(self, *args, **kwargs):
+        """Handle the call to a Bash app.
+
+        Args:
+             - Arbitrary
+
+        Kwargs:
+             - Arbitrary
+
+        Returns:
+                   App_fut
+
+        """
+
+        invocation_kwargs = {}
+        invocation_kwargs.update(self.kwargs)
+        invocation_kwargs.update(kwargs)
+
+        if self.data_flow_kernel is None:
+            dfk = DataFlowKernelLoader.dfk()
+        else:
+            dfk = self.data_flow_kernel
+
+        app_fut = dfk.submit(self.wrapped_remote_function,
+                             app_args=args,
+                             executors=self.executors,
+                             cache=self.cache,
+                             ignore_for_cache=self.ignore_for_cache,
+                             app_kwargs=invocation_kwargs)
+
+        return app_fut
