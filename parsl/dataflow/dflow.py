@@ -10,6 +10,7 @@ import inspect
 import threading
 import sys
 import datetime
+import json
 from getpass import getuser
 from typing import Any, Dict, List, Optional, Sequence
 from uuid import uuid4
@@ -59,7 +60,7 @@ class DataFlowKernel(object):
                           |        Ex_Fu<------+----|
 
     """
-    #Workflow Schema
+    # Workflow Schema
     SCHEMA = "workflow://"
 
     def __init__(self, config=Config()):
@@ -77,8 +78,8 @@ class DataFlowKernel(object):
 
         if isinstance(config, dict):
             raise ConfigurationError(
-                    'Expected `Config` class, received dictionary. For help, '
-                    'see http://parsl.readthedocs.io/en/stable/stubs/parsl.config.Config.html')
+                'Expected `Config` class, received dictionary. For help, '
+                'see http://parsl.readthedocs.io/en/stable/stubs/parsl.config.Config.html')
         self._config = config
         self.run_dir = make_rundir(config.run_dir)
 
@@ -136,20 +137,20 @@ class DataFlowKernel(object):
             self.workflow_version = self.monitoring.workflow_version
 
         workflow_info = {
-                'python_version': "{}.{}.{}".format(sys.version_info.major,
-                                                    sys.version_info.minor,
-                                                    sys.version_info.micro),
-                'parsl_version': get_version(),
-                "time_began": self.time_began,
-                'time_completed': None,
-                'run_id': self.run_id,
-                'workflow_name': self.workflow_name,
-                'workflow_version': self.workflow_version,
-                'rundir': self.run_dir,
-                'tasks_completed_count': self.tasks_completed_count,
-                'tasks_failed_count': self.tasks_failed_count,
-                'user': getuser(),
-                'host': gethostname(),
+            'python_version': "{}.{}.{}".format(sys.version_info.major,
+                                                sys.version_info.minor,
+                                                sys.version_info.micro),
+            'parsl_version': get_version(),
+            "time_began": self.time_began,
+            'time_completed': None,
+            'run_id': self.run_id,
+            'workflow_name': self.workflow_name,
+            'workflow_version': self.workflow_version,
+            'rundir': self.run_dir,
+            'tasks_completed_count': self.tasks_completed_count,
+            'tasks_failed_count': self.tasks_failed_count,
+            'user': getuser(),
+            'host': gethostname(),
         }
 
         if self.monitoring:
@@ -175,7 +176,8 @@ class DataFlowKernel(object):
 
         self.executors = {}
         self.data_manager = DataManager(self)
-        parsl_internal_executor = ThreadPoolExecutor(max_threads=config.internal_tasks_max_threads, label='_parsl_internal')
+        parsl_internal_executor = ThreadPoolExecutor(max_threads=config.internal_tasks_max_threads,
+                                                     label='_parsl_internal')
         self.add_executors(config.executors + [parsl_internal_executor])
 
         if self.checkpoint_mode == "periodic":
@@ -184,7 +186,8 @@ class DataFlowKernel(object):
                 checkpoint_period = (h * 3600) + (m * 60) + s
                 self._checkpoint_timer = Timer(self.checkpoint, interval=checkpoint_period, name="Checkpoint")
             except Exception:
-                logger.error("invalid checkpoint_period provided: {0} expected HH:MM:SS".format(config.checkpoint_period))
+                logger.error(
+                    "invalid checkpoint_period provided: {0} expected HH:MM:SS".format(config.checkpoint_period))
                 self._checkpoint_timer = Timer(self.checkpoint, interval=(30 * 60), name="Checkpoint")
 
         self.task_count = 0
@@ -404,7 +407,9 @@ class DataFlowKernel(object):
         if not self.tasks[task_id]['app_fu'].done():
             logger.error("Internal consistency error: app_fu is not done for task {}".format(task_id))
         if not self.tasks[task_id]['app_fu'] == future:
-            logger.error("Internal consistency error: callback future is not the app_fu in task structure, for task {}".format(task_id))
+            logger.error(
+                "Internal consistency error: callback future is not the app_fu in task structure, for task {}".format(
+                    task_id))
 
         self.memoizer.update_memo(task_id, self.tasks[task_id], future)
 
@@ -437,11 +442,14 @@ class DataFlowKernel(object):
 
         with task_record['app_fu']._update_lock:
             task_record['app_fu'].set_result(result)
-        
-        if len(task_record['depends'])!=0:
-                for i in range(len(task_record['depends'])):
-                    if self.tasks[task_record['depends'][i].tid]['type'] == 'sandbox_app':
-                        self._decrement_reference_count_to_sandbox_app(task_record['depends'][i].tid)
+            if self.tasks[task_record['id']]['type'] == 'sandbox_app':
+                self.tasks[task_record['id']].update({
+                    'working_directory': task_record['app_fu'].result()['working_directory']
+                })
+                print('settato')
+                if len(task_record['depends']) != 0:
+                    for i in range(len(task_record['id_tasks_dep'])):
+                        self._decrement_reference_count_to_sandbox_app(task_record['id_tasks_dep'][i])
 
     @staticmethod
     def _unwrap_remote_exception_wrapper(future: Future) -> Any:
@@ -451,10 +459,10 @@ class DataFlowKernel(object):
         return result
 
     def wipe_task(self, task_id):
-        """ Remove task with task_id from the internal tasks table 
+        """ Remove task with task_id from the internal tasks table
         """
-        #if the task is a sandbox_app, do not cancel from tasks table
-        if self.config.garbage_collect and self.tasks[task_id].get("type")!="sandbox_app":
+        # if the task is a sandbox_app, do not cancel from tasks table
+        if self.config.garbage_collect and self.tasks[task_id].get("type") != "sandbox_app":
             del self.tasks[task_id]
 
     @staticmethod
@@ -482,7 +490,8 @@ class DataFlowKernel(object):
         task_record = self.tasks.get(task_id)
         if task_record is None:
             # assume this task has already been processed to completion
-            logger.debug("Task {} has no task record. Assuming it has already been processed to completion.".format(task_id))
+            logger.debug(
+                "Task {} has no task record. Assuming it has already been processed to completion.".format(task_id))
             return
         if self._count_deps(task_record['depends']) == 0:
 
@@ -575,7 +584,8 @@ class DataFlowKernel(object):
         try:
             executor = self.executors[executor_label]
         except Exception:
-            logger.exception("Task {} requested invalid executor {}: config is\n{}".format(task_id, executor_label, self._config))
+            logger.exception(
+                "Task {} requested invalid executor {}: config is\n{}".format(task_id, executor_label, self._config))
             raise ValueError("Task {} requested invalid executor {}".format(task_id, executor_label))
 
         if self.monitoring is not None and self.monitoring.resource_monitoring_enabled:
@@ -589,6 +599,13 @@ class DataFlowKernel(object):
                                                          executor.monitor_resources())
 
         with self.submitter_lock:
+            if 'type' in self.tasks[task_id] and self.tasks[task_id]['type'] == 'sandbox_app':
+
+                if len(self.tasks[task_id]['id_tasks_dep']) != 0:
+                    kwargs.update({
+                        'tasks': json.dumps(self._sandbox_task_info(self.tasks[task_id]['id_tasks_dep']))
+                    })
+
             exec_fu = executor.submit(executable, self.tasks[task_id]['resource_specification'], *args, **kwargs)
         self.tasks[task_id]['status'] = States.launched
 
@@ -599,48 +616,57 @@ class DataFlowKernel(object):
         self._log_std_streams(self.tasks[task_id])
 
         return exec_fu
-    
 
-    
     def _decrement_reference_count_to_sandbox_app(self, task_id):
-        """ Decrease the sandbox_app reference counter. 
+        """ Decrease the sandbox_app reference counter.
         If the counter has reached 0, delete the scratch directory of the sandbox_app because there are no other sandbox_app depending on it.
         """
         self.tasks[task_id]['count_ref'] -= 1
         logger.info('Decremented reference to task {}'.format(task_id))
         if self.tasks[task_id]['count_ref'] == 0:
-            #take the name of the workflow
-            info = self.tasks[task_id]['workflow_schema'].replace(self.SCHEMA,"")
+            # take the name of the workflow
+            info = self.tasks[task_id]['workflow_schema'].replace(self.SCHEMA, "")
             info = info.split("/")
-            #path wd of the task
-            task_wd = info[0]+"/"+self.tasks[task_id]['app_fu'].result()['working_directory'] if info[0] != "" else self.tasks[task_id]['app_fu'].result()['working_directory']
-            move(task_wd,task_wd+"_old")
+            # path wd of the task
+            task_wd = info[0] + "/" + self.tasks[task_id]['app_fu'].result()['working_directory'] if info[0] != "" else \
+            self.tasks[task_id]['app_fu'].result()['working_directory']
+            move(task_wd, task_wd + "_old")
 
             logger.info('removed scracth directory of task {}'.format(task_id))
-            #delete the task from tasks table
+            # delete the task from tasks table
             del self.tasks[task_id]
-    
+
     def _increment_reference_count_to_sandbox_app(self, task_id):
         """ Increase sandbox_app reference counter
         """
         self.tasks[task_id]['count_ref'] += 1
         logger.info("Added reference to task {}".format(task_id))
 
-    def _find_task_by_name(self,app_name):
+    def _find_task_by_name(self, app_name):
         """ Find the the task on wich the current task depends on
         We know that to the sandbox_app are passed strings containing workflow:// schema
         Assuming that a workflow_app_name is associated  to the sandbox_app when
         the method submit is invoked, we can find the task by studying the task dict
         """
-        
-        #For each key-value pair in tasks                    
+
+        # For each key-value pair in tasks
         for key, value in self.tasks.items():
-            #value in this case is still a key of an internal dict
+            # value in this case is still a key of an internal dict
             # if the value of 'workflow_app_name' is equal to the app_name passed
-            # return the key ( task_id)                 
+            # return the key ( task_id)
             if value['workflow_app_name'] == app_name:
                 return key
-        
+
+    def _sandbox_task_info(self, tasks_id):
+        tasks = {}
+        for i in range(len(tasks_id)):
+            tasks[i] = {}
+            tasks[i].update({'working_directory': self.tasks[i]['app_fu'].result()['working_directory']})
+            tasks[i].update({'workflow_app_name': self.tasks[i]['workflow_app_name']})
+            tasks[i].update({'workflow_schema': self.tasks[i]['workflow_schema']})
+            # tasks[i].update({'executors': self.executors[dict[i]['executor']].provider.channel.__dict__})
+        return tasks
+
     def _add_input_deps(self, executor, args, kwargs, func):
         """Look for inputs of the app that are files. Give the data manager
         the opportunity to replace a file with a data future for that file,
@@ -659,10 +685,9 @@ class DataFlowKernel(object):
             return args, kwargs, func
 
         inputs = kwargs.get('inputs', [])
-        
+
         for idx, f in enumerate(inputs):
             (inputs[idx], func) = self.data_manager.optionally_stage_in(f, func, executor)
-            
 
         for kwarg, f in kwargs.items():
             (kwargs[kwarg], func) = self.data_manager.optionally_stage_in(f, func, executor)
@@ -707,7 +732,6 @@ class DataFlowKernel(object):
                 logger.debug("Not performing output staging for: {}".format(repr(f)))
                 app_fut._outputs.append(DataFuture(app_fut, f, tid=app_fut.tid))
         return func
-        
 
     def _gather_all_deps(self, args: Sequence[Any], kwargs: Dict[str, Any]) -> List[Future]:
         """Assemble a list of all Futures passed as arguments, kwargs or in the inputs kwarg.
@@ -725,9 +749,9 @@ class DataFlowKernel(object):
         def check_dep(d):
             if isinstance(d, Future):
                 depends.extend([d])
-        
+
         def get_sandbox_app_future(dep):
-            dep = dep.replace(self.SCHEMA,"")
+            dep = dep.replace(self.SCHEMA, "")
             dep = dep.split("/")
             task_id = self._find_task_by_name(dep[1])
             self._increment_reference_count_to_sandbox_app(task_id)
@@ -749,6 +773,15 @@ class DataFlowKernel(object):
                 dep = get_sandbox_app_future(dep)
             check_dep(dep)
 
+        return depends
+
+    def _gather_all_id_deps(self, args: Sequence[Any], kwargs: Dict[str, Any]) -> List[int]:
+        depends: List[int] = []
+        for dep in kwargs.get('inputs', []):
+            dep = dep.replace(self.SCHEMA, "")
+            dep = dep.split("/")
+            task_id = self._find_task_by_name(dep[1])
+            depends.append(task_id)
         return depends
 
     def sanitize_and_wrap(self, task_id, args, kwargs):
@@ -867,14 +900,14 @@ class DataFlowKernel(object):
                     if kw not in ignore_for_cache:
                         ignore_for_cache += [kw]
                     app_kwargs[kw] = os.path.join(
-                                self.run_dir,
-                                'task_logs',
-                                str(int(task_id / 10000)).zfill(4),  # limit logs to 10k entries per directory
-                                'task_{}_{}{}.{}'.format(
-                                    str(task_id).zfill(4),
-                                    func.__name__,
-                                    '' if label is None else '_{}'.format(label),
-                                    kw)
+                        self.run_dir,
+                        'task_logs',
+                        str(int(task_id / 10000)).zfill(4),  # limit logs to 10k entries per directory
+                        'task_{}_{}{}.{}'.format(
+                            str(task_id).zfill(4),
+                            func.__name__,
+                            '' if label is None else '_{}'.format(label),
+                            kw)
                     )
 
         resource_specification = app_kwargs.get('parsl_resource_specification', {})
@@ -903,35 +936,40 @@ class DataFlowKernel(object):
         app_fu = AppFuture(task_def)
 
         # update task_def for sandbox_app
-        if func.__doc__=="sandbox_app":
+        if func.__doc__ == "sandbox_app":
             workflow_app_name = ""
-            if 'workflow_app_name' in app_kwargs :
-                workflow_app_name = app_kwargs.get('workflow_app_name',"")
+            if 'workflow_app_name' in app_kwargs:
+                workflow_app_name = app_kwargs.get('workflow_app_name', "")
             if workflow_app_name == "":
-                workflow_app_name = func.__name__+'-'+str(task_id)
+                workflow_app_name = func.__name__ + '-' + str(task_id)
             app_kwargs['workflow_app_name'] = workflow_app_name
 
             task_def.update({
-                'workflow_app_name':workflow_app_name,
-                'type':func.__doc__, #type using in wipe_task for garbage collector
+                'workflow_app_name': workflow_app_name,
+                'type': func.__doc__,  # type using in wipe_task for garbage collector
                 'user': getuser(),
                 'hostname': gethostname(),
-                'ip':gethostbyname(gethostname()),
-                'workflow_schema':self.SCHEMA+"/"+workflow_app_name if app_kwargs.get('project',"")=="" else self.SCHEMA+app_kwargs.get('project',"")+"/"+workflow_app_name,
-                'count_ref':0
+                'ip': gethostbyname(gethostname()),
+                'workflow_schema': self.SCHEMA + "/" + workflow_app_name if app_kwargs.get('project',
+                                                                                           "") == "" else self.SCHEMA + app_kwargs.get(
+                    'project', "") + "/" + workflow_app_name,
+                'count_ref': 0,
+                'id_tasks_dep': []
             })
-        
-        
+
+            tasks_id_depends = self._gather_all_id_deps(app_args, app_kwargs)
+            task_def['id_tasks_dep'] = tasks_id_depends
+
         app_args, app_kwargs, func = self._add_input_deps(executor, app_args, app_kwargs, func)
 
         func = self._add_output_deps(executor, app_args, app_kwargs, app_fu, func)
 
         task_def.update({
-                    'args': app_args,
-                    'func': func,
-                    'kwargs': app_kwargs,
-                    'app_fu': app_fu})
-        
+            'args': app_args,
+            'func': func,
+            'kwargs': app_kwargs,
+            'app_fu': app_fu})
+
         if task_id in self.tasks:
             raise DuplicateTaskError(
                 "internal consistency error: Task {0} already exists in task list".format(task_id))
@@ -1018,8 +1056,9 @@ class DataFlowKernel(object):
 
         total_summarized = sum(keytasks.values())
         if total_summarized != self.task_count:
-            logger.error("Task count summarisation was inconsistent: summarised {} tasks, but task counter registered {} tasks".format(
-                total_summarized, self.task_count))
+            logger.error(
+                "Task count summarisation was inconsistent: summarised {} tasks, but task counter registered {} tasks".format(
+                    total_summarized, self.task_count))
         logger.info("End of summary")
 
     def _create_remote_dirs_over_channel(self, provider, channel):
@@ -1208,9 +1247,9 @@ class DataFlowKernel(object):
             with open(checkpoint_tasks, 'ab') as f:
                 for task_id in checkpoint_queue:
                     if task_id in self.tasks and \
-                       self.tasks[task_id]['app_fu'] is not None and \
-                       self.tasks[task_id]['app_fu'].done() and \
-                       self.tasks[task_id]['app_fu'].exception() is None:
+                            self.tasks[task_id]['app_fu'] is not None and \
+                            self.tasks[task_id]['app_fu'].done() and \
+                            self.tasks[task_id]['app_fu'].exception() is None:
                         hashsum = self.tasks[task_id]['hashsum']
                         self.wipe_task(task_id)
                         # self.tasks[task_id]['app_fu'] = None
@@ -1324,9 +1363,11 @@ class DataFlowKernel(object):
     @staticmethod
     def _log_std_streams(task_record):
         if task_record['app_fu'].stdout is not None:
-            logger.info("Standard output for task {} available at {}".format(task_record['id'], task_record['app_fu'].stdout))
+            logger.info(
+                "Standard output for task {} available at {}".format(task_record['id'], task_record['app_fu'].stdout))
         if task_record['app_fu'].stderr is not None:
-            logger.info("Standard error for task {} available at {}".format(task_record['id'], task_record['app_fu'].stderr))
+            logger.info(
+                "Standard error for task {} available at {}".format(task_record['id'], task_record['app_fu'].stderr))
 
 
 class DataFlowKernelLoader(object):
