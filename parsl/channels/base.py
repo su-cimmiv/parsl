@@ -146,3 +146,18 @@ class Channel(metaclass=ABCMeta):
             Path for which the absolute path will be returned.
         """
         pass
+    @abstractmethod
+    def remove_scratch_dir(self, path, mode=511, exists_ok=False):
+        """
+        Remove the scratch directory created for the sandbox_app
+
+        Parameters
+        __________
+        path : str
+         the path of the scratch_directory
+        mode : int
+            Permissions (posix-style) for the newly-created directory.
+        exist_ok : bool
+            If False, it allows the kernel dataflow to try to delete the scratch directory with another channel.
+        """
+        pass

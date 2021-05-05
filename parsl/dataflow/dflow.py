@@ -618,8 +618,15 @@ class DataFlowKernel(object):
         return exec_fu
 
     def _decrement_reference_count_to_sandbox_app(self, task_id):
-        """ Decrease the sandbox_app reference counter.
-        If the counter has reached 0, delete the scratch directory of the sandbox_app because there are no other sandbox_app depending on it.
+        """
+         Decrease the sandbox_app reference counter.
+         If the counter has reached 0, delete the scratch directory
+         of the sandbox_app because there are no other sandbox_app depending on it.
+
+         Parameters
+         -----------
+         task_id : int
+            the id that identify the current task
         """
         self.tasks[task_id]['count_ref'] -= 1
         logger.info('Decremented reference to task {}'.format(task_id))
@@ -630,9 +637,23 @@ class DataFlowKernel(object):
             # path wd of the task
             task_wd = info[0] + "/" + self.tasks[task_id]['app_fu'].result()['working_directory'] if info[0] != "" else \
             self.tasks[task_id]['app_fu'].result()['working_directory']
-            move(task_wd, task_wd + "_old")
-
-            logger.info('removed scracth directory of task {}'.format(task_id))
+            #remove the scratch direcotry
+            if isinstance(self.executors[self.tasks[task_id]['executor']], ThreadPoolExecutor):
+                move(task_wd, task_wd + "_old")
+            else:
+                logger.info("Started to find scratch directory")
+                if hasattr(self.executors[self.tasks[task_id]['executor']].provider, 'channels'):
+                    logger.debug("Checking for scratch directory")
+                    for channel in self.executors[self.tasks[task_id]['executor']].provider.channels:
+                        logger.debug("channel used {}".format(channel))
+                        if channel.remove_scratch_dir(task_wd):
+                            logger.info('removed scracth directory of task {}'.format(task_id))
+                            break
+                elif hasattr(self.executors[self.tasks[task_id]['executor']].provider, 'channel'):
+                    logger.debug("Checking for scratch directory")
+                    logger.debug("channel used {}".format(self.executors[self.tasks[task_id]['executor']].provider.channel))
+                    if self.executors[self.tasks[task_id]['executor']].provider.channel.remove_scratch_dir(task_wd):
+                        logger.info('removed scracth directory of task {}'.format(task_id))
             # delete the task from tasks table
             del self.tasks[task_id]
 

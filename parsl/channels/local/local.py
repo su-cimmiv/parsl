@@ -159,6 +159,17 @@ class LocalChannel(Channel, RepresentationMixin):
         """
         return os.path.abspath(path)
 
+    def remove_scratch_dir(self, path, mode=511, exists_ok=False):
+        """
+        Remove the scratch directory created for the sandboxapp on the site.
+        Return the result of the operation
+        Parameters
+        ----------
+        Path: str
+        """
+        res = shutil.move(path, path+"_old")
+        return res == path+"_old"
+
     @property
     def script_dir(self):
         return self._script_dir

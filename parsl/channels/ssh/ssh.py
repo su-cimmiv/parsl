@@ -267,6 +267,27 @@ class SSHChannel(Channel, RepresentationMixin):
         """
         return self._valid_sftp_client().normalize(path)
 
+    def remove_scratch_dir(self, path, mode=511, exists_ok=False):
+        """
+                Remove the scratch directory created for the sandbox_app
+
+                Return the result of the operation: true or false
+                Parameters
+                __________
+                path : str
+                 the path of the scratch_directory
+                mode : int
+                    Permissions (posix-style) for the newly-created directory.
+                exist_ok : bool
+                    If False, it allows the kernel dataflow to try to delete the scratch directory with another channel.
+                """
+
+        if exists_ok is False and self.isdir(path):
+            return False
+        self.execute_wait('mv {} {}'.format(path, path+"_old"))
+        self._valid_sftp_client().chmod(path+"_old", mode)
+        return True
+
     @property
     def script_dir(self):
         return self._script_dir
