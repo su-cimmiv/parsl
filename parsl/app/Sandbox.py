@@ -100,7 +100,7 @@ class Sandbox(object):
         This method resolve the workflow:// schema
         """
         print(self.tasks_dep)
-
+        tasks = json.loads(self.tasks_dep)
         stager = SandboxStager()
         info = script.split(" ")
         script = script.replace("workflow://", "")
@@ -108,8 +108,7 @@ class Sandbox(object):
         for i in range(len(info)):
             if 'workflow://' in info[i]:
                 dep_app_info = info[i].replace("workflow://", "").split("/")
-                dep_app_wd = self.tasks_dep[self.find_task_by_name(dep_app_info[1], self.tasks_dep)][
-                    'working_directory']
+                dep_app_wd = tasks[self.find_task_by_name(dep_app_info[1], tasks)]['working_directory']
                 dep_app_wf_name = dep_app_info[0]
                 src = dep_app_wf_name + "/" + dep_app_wd if dep_app_wf_name != "" else dep_app_wd
                 dst = self.workflow_name + "/" + self.working_directory if self.workflow_name != "" else self.working_directory
@@ -196,9 +195,9 @@ def sandbox_runner(func, *args, **kwargs):
     workflow_schema = "workflow://" + sandbox.workflow_name + "/" + sandbox.app_name
 
     # tasks dep of the current task
-
-    sandbox.tasks_dep = kwargs.get('tasks', "")
-
+    if 'tasks' in kwargs:
+        sandbox.tasks_dep = kwargs.get('tasks', "")
+        print("* * * * *", type(sandbox.tasks_dep))
     # Try to run the func to compose the commandline
     try:
         # Execute the func to get the commandline
