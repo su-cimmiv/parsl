@@ -99,7 +99,7 @@ class Sandbox(object):
         """
         This method resolve the workflow:// schema
         """
-        print(self.tasks_dep)
+
         tasks = json.loads(self.tasks_dep)
         stager = SandboxStager()
         info = script.split(" ")
@@ -197,7 +197,6 @@ def sandbox_runner(func, *args, **kwargs):
     # tasks dep of the current task
     if 'tasks' in kwargs:
         sandbox.tasks_dep = kwargs.get('tasks', "")
-        print("* * * * *", type(sandbox.tasks_dep))
     # Try to run the func to compose the commandline
     try:
         # Execute the func to get the commandline
