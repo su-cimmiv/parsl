@@ -39,6 +39,8 @@ from parsl.monitoring.message_type import MessageType
 
 from shutil import move
 
+from parsl.providers.local.local import LocalProvider
+
 logger = logging.getLogger(__name__)
 
 
@@ -446,7 +448,7 @@ class DataFlowKernel(object):
                 self.tasks[task_record['id']].update({
                     'working_directory': task_record['app_fu'].result()['working_directory']
                 })
-                print('settato')
+
                 if len(task_record['depends']) != 0:
                     for i in range(len(task_record['id_tasks_dep'])):
                         self._decrement_reference_count_to_sandbox_app(task_record['id_tasks_dep'][i])
@@ -462,7 +464,7 @@ class DataFlowKernel(object):
         """ Remove task with task_id from the internal tasks table
         """
         # if the task is a sandbox_app, do not cancel from tasks table
-        if self.config.garbage_collect and self.tasks[task_id].get("type") != "sandbox_app":
+        if self.config.garbage_collect and ("type" in self.tasks[task_id] and self.tasks[task_id].get("type") != "sandbox_app"):
             del self.tasks[task_id]
 
     @staticmethod
@@ -680,12 +682,20 @@ class DataFlowKernel(object):
 
     def _sandbox_task_info(self, tasks_id):
         tasks = {}
+
         for i in range(len(tasks_id)):
-            tasks[i] = {}
-            tasks[i].update({'working_directory': self.tasks[i]['app_fu'].result()['working_directory']})
-            tasks[i].update({'workflow_app_name': self.tasks[i]['workflow_app_name']})
-            tasks[i].update({'workflow_schema': self.tasks[i]['workflow_schema']})
-            # tasks[i].update({'executors': self.executors[dict[i]['executor']].provider.channel.__dict__})
+            tasks[tasks_id[i]] = {}
+            tasks[tasks_id[i]].update({'working_directory': self.tasks[tasks_id[i]]['app_fu'].result()['working_directory']})
+            tasks[tasks_id[i]].update({'workflow_app_name': self.tasks[tasks_id[i]]['workflow_app_name']})
+            tasks[tasks_id[i]].update({'workflow_schema': self.tasks[tasks_id[i]]['workflow_schema']})
+            if not isinstance(self.executors[self.tasks[tasks_id[i]]['executor']].provider,LocalProvider):
+                for channel in self.executors[self.tasks[tasks_id[i]]['executor']].provider.channels:
+                    tasks[tasks_id[i]].update({'channell':'SSH',
+                                               'hostname': channel.hostname,
+                                               'password': channel.password,
+                                               'username': channel.username
+                                               })
+        logger.debug(tasks)
         return tasks
 
     def _add_input_deps(self, executor, args, kwargs, func):

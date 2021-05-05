@@ -101,14 +101,16 @@ class Sandbox(object):
         """
 
         tasks = json.loads(self.tasks_dep)
+        print(tasks)
         stager = SandboxStager()
         info = script.split(" ")
         script = script.replace("workflow://", "")
         command = ""
         for i in range(len(info)):
             if 'workflow://' in info[i]:
+                dep_app_index = self.find_task_by_name(dep_app_info[1], tasks)
                 dep_app_info = info[i].replace("workflow://", "").split("/")
-                dep_app_wd = tasks[self.find_task_by_name(dep_app_info[1], tasks)]['working_directory']
+                dep_app_wd = tasks[dep_app_index]['working_directory']
                 dep_app_wf_name = dep_app_info[0]
                 src = dep_app_wf_name + "/" + dep_app_wd if dep_app_wf_name != "" else dep_app_wd
                 dst = self.workflow_name + "/" + self.working_directory if self.workflow_name != "" else self.working_directory
