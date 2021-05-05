@@ -282,7 +282,8 @@ class SSHChannel(Channel, RepresentationMixin):
                     If False, it allows the kernel dataflow to try to delete the scratch directory with another channel.
                 """
 
-        if exists_ok is False and self.isdir(path):
+        if exists_ok is False and self.isdir("home/"+self.username+"/"+path):
+            logger.debug("not exists scratch directory")
             return False
         self.execute_wait('mv {} {}'.format(path, path+"_old"))
         self._valid_sftp_client().chmod(path+"_old", mode)
