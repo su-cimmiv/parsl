@@ -688,9 +688,10 @@ class DataFlowKernel(object):
             tasks[tasks_id[i]].update({'working_directory': self.tasks[tasks_id[i]]['app_fu'].result()['working_directory']})
             tasks[tasks_id[i]].update({'workflow_app_name': self.tasks[tasks_id[i]]['workflow_app_name']})
             tasks[tasks_id[i]].update({'workflow_schema': self.tasks[tasks_id[i]]['workflow_schema']})
-            if not isinstance(self.executors[self.tasks[tasks_id[i]]['executor']].provider,LocalProvider):
-                for channel in self.executors[self.tasks[tasks_id[i]]['executor']].provider.channels:
-                    tasks[tasks_id[i]].update({'channell':'SSH',
+            if hasattr(self.executors[self.tasks[tasks_id[i]]['executor']],'provider'):
+                if not isinstance(self.executors[self.tasks[tasks_id[i]]['executor']].provider,LocalProvider):
+                    for channel in self.executors[self.tasks[tasks_id[i]]['executor']].provider.channels:
+                        tasks[tasks_id[i]].update({'channell':'SSH',
                                                'hostname': channel.hostname,
                                                'password': channel.password,
                                                'username': channel.username
