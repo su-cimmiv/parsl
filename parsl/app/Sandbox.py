@@ -113,10 +113,12 @@ class Sandbox(object):
                 dep_app_file_output = dep_app_info[2]
                 src = dep_app_wf_name + "/" + dep_app_wd if dep_app_wf_name != "" else dep_app_wd
                 dst = self.workflow_name + "/" + self.working_directory if self.workflow_name != "" else self.working_directory
-                if 'channell' in tasks[dep_app_index]:
+                if 'channell' in tasks[dep_app_index] and tasks[dep_app_index]['hostname'] != gethostbyname(gethostname() + ".local"):
                     stager.hostname = tasks[dep_app_index]['hostname']
                     stager.username = tasks[dep_app_index]['username']
-                    stager.scp_command(src,dst)
+                    dest = dst+"/"+dep_app_wd
+                    os.makedirs(dest)
+                    stager.ftp_copy(src,dep_app_file_output,dest)
                 else:
                     command += stager.cp_command(src, dst)
 
@@ -211,7 +213,7 @@ def sandbox_runner(func, *args, **kwargs):
         # Execute the func to get the commandline
         executable = func(*args, **kwargs)
         executable = sandbox.define_command(executable)
-
+        logger.debug(executable)
     except AttributeError as e:
         if executable is not None:
             raise pe.AppBadFormatting("App formatting failed for app '{}' with AttributeError: {}".format(func_name, e))
@@ -252,7 +254,7 @@ def sandbox_runner(func, *args, **kwargs):
     try:
 
         logger.debug("workflow://schema: %s", workflow_schema)
-        logger.debug("Script: ", executable)
+
         proc = subprocess.Popen(executable, stdout=std_out, stderr=std_err, shell=True, executable='/bin/bash')
         proc.wait(timeout=timeout)
 
