@@ -113,12 +113,13 @@ class Sandbox(object):
                 dep_app_file_output = dep_app_info[2]
                 src = dep_app_wf_name + "/" + dep_app_wd if dep_app_wf_name != "" else dep_app_wd
                 dst = self.workflow_name + "/" + self.working_directory if self.workflow_name != "" else self.working_directory
-                if 'channell' in tasks[dep_app_index] and tasks[dep_app_index]['hostname'] != gethostbyname(gethostname() + ".local"):
+                if 'channell' in tasks[dep_app_index]:#and tasks[dep_app_index]['hostname'] != gethostbyname(gethostname() + ".local"):
                     stager.hostname = tasks[dep_app_index]['hostname']
                     stager.username = tasks[dep_app_index]['username']
-                    dest = dst+"/"+dep_app_wd
-                    os.makedirs(dest)
-                    stager.ftp_copy(src,dep_app_file_output,dest)
+                    #dest = dst+"/"+dep_app_wd
+                    #os.makedirs(dest)
+                    #stager.ftp_copy(src,dep_app_file_output,dest)
+                    command += stager.scp_command(src, dst)
                 else:
                     command += stager.cp_command(src, dst)
 

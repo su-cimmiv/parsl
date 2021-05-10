@@ -34,7 +34,7 @@ class SandboxStager(object):
     def ftp_copy(self,src_dir,src_file,dst):
         ssh_client = paramiko.SSHClient()
         ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        ssh_client.connect(hostname=self.hostname, username=self.username)
+        ssh_client.connect(hostname=self.hostname,port=22, username=self.username)
         remote_dir = src_dir
         remote_file = src_file
         dest = dst
