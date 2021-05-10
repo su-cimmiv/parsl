@@ -681,6 +681,7 @@ class DataFlowKernel(object):
                 return key
 
     def _sandbox_task_info(self, tasks_id):
+        import ipaddress
         tasks = {}
 
         for i in range(len(tasks_id)):
@@ -693,10 +694,16 @@ class DataFlowKernel(object):
                     for channel in self.executors[self.tasks[tasks_id[i]]['executor']].provider.channels:
                         tasks[tasks_id[i]].update({'channell':'SSH',
                                                'hostname': channel.hostname,
-                                               'password': channel.password,
                                                'username': channel.username
                                                })
-        logger.debug(tasks)
+                else:
+                    ips = self.executors[self.tasks[tasks_id[i]]['executor']].launch_cmd.split(" ")[4].split(",")
+                    tasks[tasks_id[i]].update({'channell': 'SSH'})
+                    for j in range(len(ips)):
+                        if ips[j].isalpha():
+                            tasks[tasks_id[i]].update({'username': ips[j]})
+                        elif not ipaddress.ip_address(ips[j]).is_loopback and ipaddress.ip_address(ips[j]).is_private:
+                            tasks[tasks_id[i]].update({'hostname': ips[j]})
         return tasks
 
     def _add_input_deps(self, executor, args, kwargs, func):
@@ -921,6 +928,7 @@ class DataFlowKernel(object):
         else:
             raise ValueError("Task {} supplied invalid type for executors: {}".format(task_id, type(executors)))
         executor = random.choice(choices)
+
         logger.debug("Task {} will be sent to executor {}".format(task_id, executor))
 
         # The below uses func.__name__ before it has been wrapped by any staging code.

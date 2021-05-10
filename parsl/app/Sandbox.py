@@ -99,7 +99,6 @@ class Sandbox(object):
         """
         This method resolve the workflow:// schema
         """
-
         tasks = json.loads(self.tasks_dep)
         stager = SandboxStager()
         info = script.split(" ")
@@ -111,10 +110,17 @@ class Sandbox(object):
                 dep_app_index = self.find_task_by_name(dep_app_info[1], tasks)
                 dep_app_wd = tasks[dep_app_index]['working_directory']
                 dep_app_wf_name = dep_app_info[0]
+                dep_app_file_output = dep_app_info[2]
                 src = dep_app_wf_name + "/" + dep_app_wd if dep_app_wf_name != "" else dep_app_wd
                 dst = self.workflow_name + "/" + self.working_directory if self.workflow_name != "" else self.working_directory
-                command += stager.cp_command(src, dst)
-                command += "\n"
+                if 'channell' in tasks[dep_app_index]:
+                    stager.hostname = tasks[dep_app_index]['hostname']
+                    stager.username = tasks[dep_app_index]['username']
+                    stager.scp_command(src,dst)
+                else:
+                    command += stager.cp_command(src, dst)
+
+                command +="\n"
                 script = script.replace(dep_app_wf_name + "/" + dep_app_info[1], dep_app_wd)
         command += self.pre_execute()
         command += "\n"
@@ -198,6 +204,8 @@ def sandbox_runner(func, *args, **kwargs):
     # tasks dep of the current task
     if 'tasks' in kwargs:
         sandbox.tasks_dep = kwargs.get('tasks', "")
+        logger.debug(sandbox.tasks_dep)
+
     # Try to run the func to compose the commandline
     try:
         # Execute the func to get the commandline
@@ -244,7 +252,7 @@ def sandbox_runner(func, *args, **kwargs):
     try:
 
         logger.debug("workflow://schema: %s", workflow_schema)
-
+        logger.debug("Script: ", executable)
         proc = subprocess.Popen(executable, stdout=std_out, stderr=std_err, shell=True, executable='/bin/bash')
         proc.wait(timeout=timeout)
 
