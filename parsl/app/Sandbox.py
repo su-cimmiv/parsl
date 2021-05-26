@@ -5,7 +5,7 @@ from socket import gethostname, gethostbyname
 
 import parsl
 
-from parsl.app.bash import BashApp
+from parsl.app.app import AppBase
 from parsl.app.errors import wrap_error
 from parsl.data_provider.files import File
 from parsl.dataflow.dflow import DataFlowKernelLoader
@@ -135,7 +135,6 @@ class Sandbox(object):
         This method prepare the command that must be executed.
         If no workflow:// schema dep is matched the app does not requier any input file
         and the pre_execute method is called.
-
         If the app requires same input file,
         workflow_schema resolver is
         called for resolve workflow://schema.
@@ -288,7 +287,7 @@ def sandbox_runner(func, *args, **kwargs):
     return return_value
 
 
-class SandboxApp(BashApp):
+class SandboxApp(AppBase):
     def __init__(self, func, data_flow_kernel=None, cache=False, executors='all', ignore_for_cache=None):
         super().__init__(func, data_flow_kernel=data_flow_kernel, executors=executors, cache=cache,
                          ignore_for_cache=ignore_for_cache)
@@ -316,16 +315,12 @@ class SandboxApp(BashApp):
 
     def __call__(self, *args, **kwargs):
         """Handle the call to a Bash app.
-
         Args:
              - Arbitrary
-
         Kwargs:
              - Arbitrary
-
         Returns:
                    App_fut
-
         """
 
         invocation_kwargs = {}
